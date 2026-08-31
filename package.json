@@ -1,0 +1,32 @@
+{
+  "name": "keyflow-studio",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p packages/keyflow-contract/tsconfig.json --pretty false && tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p packages/keyflow-contract/tsconfig.json --pretty false && tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@keyflow/contract": "workspace:*",
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest",
+    "zod": "latest",
+    "zustand": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "autoprefixer": "latest",
+    "postcss": "latest",
+    "tailwindcss": "^3.4.17",
+    "typescript": "latest"
+  }
+}

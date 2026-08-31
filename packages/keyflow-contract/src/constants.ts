@@ -1,0 +1,24 @@
+export const KEY_SLOTS = [
+  "KEY_1",
+  "KEY_2",
+  "KEY_3",
+  "KEY_4",
+  "KEY_5",
+  "KEY_6",
+] as const;
+
+export type KeySlot = (typeof KEY_SLOTS)[number];
+
+export const PLATFORMS = ["windows", "macos"] as const;
+export type Platform = (typeof PLATFORMS)[number];
+
+export const KEY_CODES = [
+  "CTRL", "META", "ALT", "SHIFT",
+  "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+  "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+  "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+  "ENTER", "ESCAPE", "TAB", "SPACE", "BACKSPACE", "DELETE",
+  "UP", "DOWN", "LEFT", "RIGHT",
+  "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+] as const;
+export type KeyCode = (typeof KEY_CODES)[number];

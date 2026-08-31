@@ -1,0 +1,34 @@
+{
+  "version": "1.2",
+  "id": "default",
+  "name": "我的 KeyFlow",
+  "bindings": [
+    {
+      "id": "binding-key-1",
+      "slot": "KEY_1",
+      "name": "打开工作台",
+      "description": "打开 Chrome，然后复制",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "appId": "chrome",
+          "executions": {
+            "windows": { "type": "LAUNCH_APP", "executableNames": ["chrome.exe"] },
+            "macos": { "type": "LAUNCH_APP", "bundleIds": ["com.google.Chrome"], "appNames": ["Google Chrome.app"] }
+          }
+        },
+        {
+          "type": "COMMAND",
+          "commandId": "COPY",
+          "name": "复制",
+          "executions": {
+            "windows": { "type": "SEND_HOTKEY", "keys": ["CTRL", "C"] },
+            "macos": { "type": "SEND_HOTKEY", "keys": ["META", "C"] }
+          }
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-08-31T00:00:00.000Z",
+  "updatedAt": "2026-08-31T00:00:00.000Z"
+}
