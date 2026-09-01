@@ -7,7 +7,7 @@ import { useCommandRegistryStore } from "./commandRegistryStore";
 
 function defaultProfile(): Profile {
   const now = new Date().toISOString();
-  return { version: "1.2", id: "default", name: "我的 KeyFlow", bindings: KEY_SLOTS.map((slot, index) => ({ id: `binding-key-${index + 1}`, slot, name: `按键 ${index + 1}`, actions: [] })), createdAt: now, updatedAt: now };
+  return { version: "1.2", id: "default", name: "我的 KeyFlow", bindings: [], createdAt: now, updatedAt: now };
 }
 const LEGACY_SLOT_MAP: Record<string, KeySlot> = { F13: "KEY_1", F14: "KEY_2", F15: "KEY_3", F16: "KEY_4", F17: "KEY_5", F18: "KEY_6" };
 function migrateExecution(value: unknown): unknown {
@@ -68,7 +68,12 @@ function loadProfile() {
   const migration = migrateLegacyProfile(readStorage(STORAGE_KEYS.profile));
   const parsed = profileSchema.safeParse(migration.value);
   if (!parsed.success) return defaultProfile();
-  const profile = parsed.data.name === "My KeyFlow" ? { ...parsed.data, name: "我的 KeyFlow" } : parsed.data;
+  const localized = parsed.data.name === "My KeyFlow" ? { ...parsed.data, name: "我的 KeyFlow" } : parsed.data;
+  const bindings = localized.bindings.filter((binding) => {
+    const number = Number(binding.slot.slice(4));
+    return binding.actions.length > 0 || Boolean(binding.description?.trim()) || binding.name !== `按键 ${number}`;
+  });
+  const profile = bindings.length === localized.bindings.length ? localized : { ...localized, bindings, updatedAt: new Date().toISOString() };
   if (migration.migrated || profile !== parsed.data) writeStorage(STORAGE_KEYS.profile, profile);
   return profile;
 }

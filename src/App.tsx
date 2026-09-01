@@ -4,5 +4,6 @@ import { AppRegistryPage } from "./pages/AppRegistryPage";
 import { CommandRegistryPage } from "./pages/CommandRegistryPage";
 import { ExportPage } from "./pages/ExportPage";
 import { KeyMappingPage } from "./pages/KeyMappingPage";
+import { KeySetupPage } from "./pages/KeySetupPage";
 import { OverviewPage } from "./pages/OverviewPage";
-export default function App(){return <Routes><Route element={<AppLayout/>}><Route path="/" element={<OverviewPage/>}/><Route path="/apps" element={<AppRegistryPage/>}/><Route path="/commands" element={<CommandRegistryPage/>}/><Route path="/mapping" element={<KeyMappingPage/>}/><Route path="/export" element={<ExportPage/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Route></Routes>}
+export default function App(){return <Routes><Route element={<AppLayout/>}><Route path="/" element={<OverviewPage/>}/><Route path="/setup" element={<KeySetupPage/>}/><Route path="/apps" element={<AppRegistryPage/>}/><Route path="/commands" element={<CommandRegistryPage/>}/><Route path="/mapping" element={<KeyMappingPage/>}/><Route path="/export" element={<ExportPage/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Route></Routes>}

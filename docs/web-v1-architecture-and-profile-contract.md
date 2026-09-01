@@ -452,6 +452,14 @@ KeyFlow 不必依赖 enigo。macOS 适配层应改为直接封装 CoreGraphics�
 
 若改绑提交因无效按键或系统注册失败而失败，前端会显式调用取消 capture 的 Runtime command 恢复上一份全局注册；不会让 Runtime 因一次失败操作持续处于未注册状态。
 
+## 2026-09-01：窗口缩放与拖动区适配
+
+窗口继续保留 Tauri 的 900×620 最小尺寸，但内容不再依赖固定三列/两列的窗口宽度断点。Command Grid 改为按实际主内容区自动在 210px 最小 Tile 宽度下增减列数；Header 和滚动区 padding 使用 `clamp()`，在较窄窗口收敛留白；Settings Hero 在较窄尺寸自动改为纵向排列，避免状态胶囊挤压标题。
+
+此前顶部拖动区是透明的 44px 覆盖层，在 Overlay title bar 下没有可辨认视觉，容易被误认为失效。自绘 drag region 和模拟的 `grab/grabbing` 反馈已删除。窗口改为 Tauri/macOS `titleBarStyle: "Transparent"`：保留系统原生标题栏、Traffic Light 与顶部拖动行为，同时让原生标题栏显示 KeyFlow 的深石墨窗口背景 `#10121a`。这不使用 Overlay，因此不会重新引入“窗口未聚焦时拖动失效”的自绘拖动区问题；原生顶部只能稳定使用单色/系统材质，应用正文仍保持既有深色 UI。
+
+验证：`npm run build` 与 `cargo check` 通过。需要在 Tauri 主窗口人工验证最小尺寸、两/三列切换和拖动区域是否符合 macOS 手感。
+
 验证：`cargo check`、`cargo test`（4/4）、`npm run typecheck` 与 `npm run build` 全部通过。视觉效果需在重启后的 Tauri 窗口中人工复核 Settings、Toast、更多按钮选中态和“F10 从 A 改绑到 B 时 A 不执行、B 获得 F10”场景。
 
 ## 2026-09-01：RuntimeProfile GUI 闭环与重启恢复
@@ -517,3 +525,77 @@ Studio 的单一事实源仍是三项浏览器 localStorage：`keyflow.currentPr
 ### 实施边界与建议验收
 
 本阶段建议改动限于新页面、导航、新的 setup 组件/摘要工具与 store orchestration，不改 Contract 和 Rust。编码后的 Case 1–5 应分层记录：页面交互与 localStorage 可由浏览器实际验证；导出 JSON 可由 Schema/构建测试验证；旧页面互读可由同一浏览器会话验证；Runtime 执行、Runtime 中旧记录清理、macOS/Windows 行为必须通过手工导出导入和真实按键执行验证，未执行时标记“待确认”，不能写成已闭环。
+
+## 2026-09-01：Studio 第二阶段按键配置 UX 实施
+
+### 新入口与用户交互
+
+Studio 新增 `/setup` 一级入口“按键配置”，采用 320px 紧凑 KEY 列表与单 KEY Detail。左侧显示推导名称、组合键或动作数量；右侧只展示当前 KEY 的有序 Action，支持添加、点击编辑、删除及上下移动。“软件库 / 命令库 / 逻辑按键”保留并归入“高级管理”，没有删除一期入口。
+
+添加动作仅展示当前 Runtime 已支持的“键盘快捷键”和“打开软件”。快捷键可直接捕获组合键，并提供复制、粘贴、剪切、撤销、重做、全选、保存七个稳定快捷入口；除这七类外只生成“快捷键 + 可读组合”的摘要，不引入大型语义字典。打开软件继续使用现有 App Registry。自定义名称和说明收进“更多设置”，空 KEY 首次添加动作时自动推导名称。
+
+页面反馈固定为“正在保存…”、“已保存到当前配置”或具体失败信息；页面底部明确提示“配置保存在当前浏览器；需要导出 JSON 并在 Runtime 手动导入后才会生效”。未使用“已应用”或“已生效”。
+
+### Registry 编排与清理边界
+
+`CommandDefinition` 当前没有 metadata/source 字段，本轮没有修改共享 Contract。setup 首先按完整跨平台 executions 复用等价既有 Command；没有等价项时，以 `SETUP_<时间片>_<随机片>` 创建 Registry Command。该前缀是 Studio Registry 层的最小来源标记，不进入 Runtime 判定逻辑。
+
+每次 setup 写入会先使用现有 Zod Schema 校验完整 next Profile 与 next Command Registry，再依次写原有 `keyflow.commandRegistry` 和 `keyflow.currentProfile`；第二次写入失败时恢复两项原快照并显示错误。页面没有第二份 setup state 或 setup 文件。
+
+删除 Action 或清空 KEY 后，只清理同时满足 `command.id` 以 `SETUP_` 开头且全 Profile 零引用的 Command。COPY/PASTE/SAVE 等既有命令以及用户从旧命令库创建的任何非 `SETUP_` 命令均不会被自动删除。清空 KEY 会把名称恢复为稳定的“按键 N”、移除说明和全部 Actions，但不会触碰其他 KEY。
+
+### 当前验证记录
+
+- 静态验证：根项目 `npm run typecheck` 与 `npm run build` 均通过；Vite 生产构建生成成功。
+- Case 1：浏览器从空白 KEY 2 进入 Action Picker，选择键盘快捷键与“复制”，保存后左侧显示“复制 / ⌘C”，当前区显示“已保存到当前配置”，无需访问命令库或填写名称。
+- Case 2：点击 KEY 2 的既有快捷键，在当前详情改为“粘贴”后保存，左侧与详情同步显示“粘贴 / ⌘V”。
+- Case 3：`clearSetupBinding` 已实现为单次校验、写入和零引用 setup Command 清理；浏览器删除验收尚待用户确认清理本轮临时测试数据。
+- Case 4：在 KEY 2 的粘贴后追加 Google Chrome，页面显示两个有序动作，导出统计与 JSON 均包含两个 Action。
+- Case 5：setup 创建的 KEY 2 在旧逻辑按键页可见为“粘贴 + Google Chrome”；旧逻辑按键页为 KEY 3 添加 SAVE 后，setup 立即显示“保存 / ⌘S”。导出页通过 Profile v1.2 Schema 与业务校验。
+- 来源标记：通过 setup 为 KEY 4 创建与现有 REDO execution 不等价的“重做”，旧命令库实际显示 `SETUP_` 前缀 ID，证明自动命令与手工命令可区分。
+
+上述浏览器验证只证明 Studio localStorage、旧页面互读和可导出 JSON 闭环。Runtime 没有被修改或调用；“导出 JSON → Runtime 手动导入 → Runtime 绑定实体按键 → 实际执行”仍是独立人工链路，不能由本轮 Web 验证替代。
+
+### 2026-09-01：快捷键录入方案纠偏
+
+首次实施曾让 `/setup` 捕获一次本机组合键，并通过 `META ↔ CTRL` 替换生成另一平台 execution。复核后确认该推断只对少量常见快捷键成立，无法代表通用跨平台配置；例如项目现有 REDO 的 macOS 是 `META + SHIFT + Z`，Windows 是 `CTRL + Y`，机械转换会错误生成 `CTRL + SHIFT + Z`。因此已移除 `HotkeyDialog`、常用硬编码按钮和 setup 自动生成 Command 的入口。
+
+当前 `/setup` 的“键盘快捷键”改为联动现有 Command Registry：只列出已启用命令，以面向用户的动作名称、说明、macOS 组合和 Windows 组合展示；支持搜索、分类、单选替换和多选追加。用户选择后直接通过 `createCommandAction(command)` 复用该 Command 已明确配置的双平台 executions，不录入、不推断、不改写平台快捷键。命令库是快捷键平台配置的唯一事实源，`/setup` 只负责“KEY 选择什么动作”的编排。
+
+`SETUP_` 前缀识别与零引用清理仅为兼容首次实施期间已经产生的数据保留；当前 UI 不再创建 `SETUP_` Command。旧命令库手工创建的非 `SETUP_` 命令仍不参与自动清理。
+
+浏览器只读复核确认选择器会显示真实差异：COPY 为 macOS `⌘C` / Windows `Ctrl+C`，现有 REDO 为 macOS `⌘⇧Z` / Windows `Ctrl+Y`。根项目 `npm run typecheck` 与 `npm run build` 在纠偏后再次通过。
+
+### 2026-09-01：Profile Binding 改为按需新增与删除
+
+此前 `defaultProfile()` 会固定创建 KEY_1～KEY_6 六条 Binding，即使用户只配置一个按键，导出 JSON 仍携带五条空 Binding；Runtime 的 Import = Insert 会按 source bindings 全量展开，因此空 Binding 也会产生无动作 RuntimeProfile。
+
+当前不修改 Profile v1.2 的 `KEY_1…KEY_6` Slot Contract，只改变 Profile 中实际 Binding 的数量：新 Profile 默认 `bindings: []`；`/setup` 提供“新增按键”，从尚未使用的 Slot 中选择编号最小的一项加入当前 Profile；“删除按键”从当前 Profile 移除整条 Binding。用户维护几条，Studio Profile 就保存几条，最多仍受当前六个逻辑 Slot Contract 限制。
+
+读取历史 localStorage 时，仅自动移除同时满足“actions 为空、没有 description、名称仍为默认按键 N”的占位 Binding；已有动作、自定义名称或说明的 Binding 保留。该兼容收敛避免历史默认空项继续进入后续导出，同时不删除有用户信息的配置。
+
+导出编译增加第二道边界：`compileProfile` 只编译 `actions.length > 0` 的 Binding。因此用户刚新增但尚未选动作的草稿不会进入下载 JSON，Runtime 手动导入时也不会再为它创建空 RuntimeProfile。Studio 保存成功仍只表示“已保存到当前配置”，Runtime 生效继续要求手工导出、导入与实体按键绑定。
+
+验证：纠偏后 `npm run typecheck` 与 `npm run build` 均通过。浏览器中的历史空 Binding 清理和删除操作会改变当前 localStorage，本轮未在未经确认的情况下主动执行删除型浏览器验收。
+
+## 2026-09-01：Runtime Settings 紧凑布局与侧栏退出入口清理
+
+Runtime 的 Settings 主区域不再固定为左侧 680px 的单列。正常桌面宽度使用最大 840px 的双列网格：状态概览横跨全宽，运行状态与快捷键诊断并排，应用退出区横跨全宽；这样保留现有信息层级，同时消除右侧大面积无意义留白。窗口宽度不足 980px 时自动退回单列，卡片、按钮与文字不会因拖窄而挤压。
+
+Sidebar 中仅保留运行状态；已移除设置页条件渲染的底部退出按钮及对应样式，避免正常窗口尺寸下不可见、但在极端高度下出现的隐藏操作入口。显式退出仍由 Settings 的“应用”区域和系统托盘菜单提供，产品的常驻/退出边界不变。
+
+## 2026-09-01：Runtime 系统内置与外部导入 Profile 分层
+
+Web 当前不存在可由桌面安装包读取的“启用 Profile 列表”：它只有浏览器 localStorage 中的一份当前 Profile；带 `enabled` 状态的是内置命令库。因此 Runtime 将 Web 当前八个启用的跨平台命令（复制、粘贴、剪切、撤销、重做、全选、保存、查找）固化为随安装包提供的 `builtin-profile.json`，启动时以稳定 `system-builtin-*` RuntimeProfile id 补齐。这些 Profile 的 Execution 直接来自 Web 命令定义，仍是 Profile v1.2 的 `SEND_HOTKEY`，没有新增 Contract 或 Runtime Primitive。浏览器中用户临时配置无法被桌面进程直接读取，仍应通过 Web 导出 JSON 后进入外部导入流程。
+
+`RuntimeProfile` 新增持久化本地字段 `source`，仅取 `SYSTEM` 或 `EXTERNAL`；`serde(default)` 将旧 `profiles.json` 记录兼容为 `EXTERNAL`。系统 Profile 在启动时去重补齐、不会重复插入；Repository 拒绝删除系统项，GUI 的系统内置卡片也不显示删除菜单。外部导入维持 Import = Insert，仍可单项删除，并增加“管理外部”模式：可多选外部项、确认后批量删除。批量删除只接受 Repository 仍判定为 `EXTERNAL` 的 id，因此 GUI 状态不能绕过后端保护；删除前会解除关联实体按键，保留原始 JSON 文件不变。
+
+验证：`cargo check`、`cargo test`（5/5）、`npm run typecheck` 与 `npm run build` 通过。首次启动实际窗口时应确认八个内置卡片均出现、外部卡片可进入批量管理、系统卡片无删除入口，以及一次外部删除后其物理绑定被同步解除。
+
+## 2026-09-01：Runtime Deck 滚动与窗口缩放视觉验收
+
+实际 Tauri 窗口验收覆盖 900×620 最小尺寸、1120×760 默认尺寸与 1400×900 放大尺寸。最小尺寸使用两列 Tile，默认尺寸使用三列；放大后按可用主内容区继续扩展卡片宽度与列数。原实现将 Grid 和分组标题限制为 `max-width: 930px`，放大窗口时会留下不必要的右侧空白，已删除该限制，并将每列最低宽度定为 220px，保持卡片信息密度。
+
+Deck “看似不能滚动”的根因是 `.main-content` 同时作为 CSS Grid item 和 Flex container，却缺少 `min-height: 0`。长列表会将其撑到内容高度，外层 `.runtime-shell` 的 `overflow: hidden` 再裁切底部，`grid-scroll` 无法形成真实 overflow。现已为主内容、Deck Scroll 和 Settings Scroll 明确设置高度收缩边界；Deck/Settings 都使用独立 `overflow-y: auto`、`overscroll-behavior: contain` 和稳定 scrollbar gutter。这样滚轮只滚动内容区，不移动 Header/Sidebar，也不会向外层泄漏。
+
+该轮实际截图确认了修复前的底部裁切与修复后的受约束滚动布局；系统级模拟滚轮的命令行注入未能完成，因此仍需用户用触控板或鼠标在 Deck 内容区实际滚动一次，确认 macOS WebView 的输入链路。静态构建验证作为独立记录，不替代该最后一步人工输入验收。

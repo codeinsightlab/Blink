@@ -18,7 +18,7 @@ export function createCommandAction(command: CommandDefinition): Action {
 export function compileProfile(profile: Profile, apps: AppDefinition[], commands: CommandDefinition[]): Profile {
   return {
     ...profile,
-    bindings: profile.bindings.map((binding) => ({
+    bindings: profile.bindings.filter((binding) => binding.actions.length > 0).map((binding) => ({
       ...binding,
       actions: binding.actions.map((action) => {
         if (action.type === "OPEN_APP") {
