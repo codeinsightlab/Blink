@@ -599,3 +599,9 @@ Web 当前不存在可由桌面安装包读取的“启用 Profile 列表”：�
 Deck “看似不能滚动”的根因是 `.main-content` 同时作为 CSS Grid item 和 Flex container，却缺少 `min-height: 0`。长列表会将其撑到内容高度，外层 `.runtime-shell` 的 `overflow: hidden` 再裁切底部，`grid-scroll` 无法形成真实 overflow。现已为主内容、Deck Scroll 和 Settings Scroll 明确设置高度收缩边界；Deck/Settings 都使用独立 `overflow-y: auto`、`overscroll-behavior: contain` 和稳定 scrollbar gutter。这样滚轮只滚动内容区，不移动 Header/Sidebar，也不会向外层泄漏。
 
 该轮实际截图确认了修复前的底部裁切与修复后的受约束滚动布局；系统级模拟滚轮的命令行注入未能完成，因此仍需用户用触控板或鼠标在 Deck 内容区实际滚动一次，确认 macOS WebView 的输入链路。静态构建验证作为独立记录，不替代该最后一步人工输入验收。
+
+### 后续视觉一致性调整
+
+Profile 的来源是分组属性，不是卡片类型。Deck 不再在每张卡片上显示“内置/导入”角标，所有 RuntimeProfile 共用相同卡片骨架、图标位置、更多按钮和绑定区；来源差异只体现在分组标题与系统项不提供删除操作。外部导入分组调整到首屏，系统内置紧随其后。
+
+Deck 内容区顶部新增粘性分组导航，可一键定位“外部导入”或“系统内置”。由于 GUI 使用整块 `innerHTML` 重绘，管理外部、选中卡片和打开菜单前会保存 `grid-scroll.scrollTop`，完成重绘后恢复；因此外部管理不会再自动跳回列表顶部。
