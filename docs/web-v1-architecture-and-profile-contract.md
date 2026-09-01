@@ -396,6 +396,64 @@ COPY 的 `META` 也不存在 macOS 解析错误：Profile keys 是 `["META", "C"
 
 enigo 0.2.1 的 macOS 实现对每个按下/释放事件调用 `CGEvent::new_keyboard_event(...).post(CGEventTapLocation::HID)`，投递 API 本身没有成功/失败返回值。它无法证明 ChatGPT 已执行复制；该库也存在公开的 macOS 修饰键组合兼容性问题。当前需要替换或补强的是 macOS 跨应用输入注入实现，并以 TextEdit/ChatGPT 的真实选区验证，而不是继续调整 Profile 的 `["META", "C"]` Contract 或 F10 global shortcut。
 
+### 后续解决方向：不依赖 enigo
+
+KeyFlow 不必依赖 enigo。macOS 适配层应改为直接封装 CoreGraphics：以目标应用前台 PID 构造 `CGEvent`，为 C down/up 显式设置 Command modifier flag，并经 `CGEventPostToPid`（或经验证的 HID post）投递；每次事件创建、投递目标 PID 和辅助功能状态均写入诊断。这样可消除 enigo 对修饰键状态与投递结果不可观察的黑箱。
+
+实体按键监听也应作为独立 macOS backend 评估：现有 Carbon `RegisterEventHotKey` 已证明能收到 F10，但它只适合已注册组合，不能提供原始键事件的可消费语义。若产品需要稳定地阻止 F10 同时触发前台应用功能，应使用获辅助功能授权的 `CGEventTap`，在 KeyDown/KeyUp 命中 Binding 时消费事件，再异步调度 RuntimeProfile。该替换只改变平台输入适配层，不改变 RuntimeProfile、Binding Map 或 Profile v1.2 Contract。
+
+## 2026-09-01：C 端双平台输入执行策略评估（未实施）
+
+### 共同结论
+
+“跨平台”不等于底层输入 API 必须只有一套。KeyFlow 可继续共用 Contract、ProfileRepository、Binding Map、Dispatcher、Tray/Window 生命周期和 Runtime Snapshot；需要分平台的仅是很薄的 `InputBackend`：全局输入注册/消费与 `SEND_HOTKEY` 注入。这个边界约占当前 Runtime 代码很小的一部分，不会造成两份 Runtime。
+
+### 三条路径与估算
+
+1. **直接修补/长期 fork enigo 0.2.1：不建议。** 现版本无法观测目标应用是否接受 `CGEventPost`，要修复 Command flag、事件状态、目标 PID 等能力将把 KeyFlow 变成 enigo 的私有维护者；首轮约 3–6 人日，后续需持续跟随上游，且仍不能保证跨 App 行为。
+2. **升级 enigo 并做严格的时间盒验证：优先的第一步。** 当前锁定 `0.2.1`，而上游后续版本公开记录了 macOS 修饰键状态、物理键盘状态和辅助功能检查的修复。升级/适配预计 0.5–1 人日，macOS/Windows 的真实应用矩阵验证预计 1–2 人日。若在规定矩阵中稳定，可保留 enigo 作为共享默认 backend；若失败，立即停止继续 patch，不投入 fork。
+3. **建立平台适配层：C 端产品的长期落点。** macOS 以 CoreGraphics/Accessibility（必要时 `CGEventTap`）实现，Windows 以 `SendInput` 实现；各自报告权限、完整性/安全桌面和注入计数等系统事实。适配接口与诊断约 0.5–1 人日，macOS 注入与真实验证约 2–3 人日，Windows `SendInput` 与 UAC 诊断/验证约 1.5–2.5 人日，总计约 4–6 人日。若还要求物理 F-key 被稳定消费、不传递给前台应用，macOS event tap 另加 2–3 人日；Windows low-level hook 另加 1.5–2.5 人日。
+
+### 推荐决策与门槛
+
+不应现在就做两套完整的监听和执行；先保留 Tauri global shortcut（当前 F10 证明其可捕获），做 enigo 最新版升级 spike。验收矩阵至少包含 TextEdit、Chrome/ChatGPT、Finder、IDEA/VS Code 以及中英文输入法，且测试 dev 与签名安装包；每项覆盖前台/后台触发、复制、键释放、暂停/恢复。任一核心目标 App 仍出现“回调已到但复制无效”或修饰键串扰，就停止 enigo 方案，落地 macOS 原生注入 adapter；Windows 先继续使用经矩阵验证的 enigo，只有出现 Windows 输入缺陷时才替换为 `SendInput`。这种渐进路径把一次性成本控制在约 2–3 人日的验证，失败时再增量投入 macOS 2–3 人日，而非一开始承诺两套完整实现。
+
+无论选择哪条路径，均无法在 macOS 安全桌面、受保护输入框、Windows UAC 高完整性目标等系统边界上承诺“所有 App 必然可控”；C 端产品应将这些状态明确反馈给用户，而非静默成功。
+
+### 2026-09-01：enigo 升级 spike 已开始
+
+按决策先实施最低成本验证路径：Runtime 的 `enigo` 依赖从 `0.2` 升级至当前稳定版 `0.6.1`。当前 Rust 工具链为 `1.98.0`，高于该版本要求的 `1.85`；既有 `SEND_HOTKEY` 调用 API 无需适配。`cargo check`、`cargo test`（4/4）、`npm run typecheck` 和 `npm run build` 已通过，并已以干净的 `tauri dev` 重启运行升级版本。
+
+此次升级只改变依赖锁定和底层输入实现，不修改 Profile v1.2 Contract、RuntimeProfile、Binding、快捷键生命周期或 UI。后续必须以实体输入在真实目标 App（TextEdit、Chrome/ChatGPT、Finder、IDEA/VS Code，中英文输入法）中完成验证，不能用编译成功替代跨应用复制证据。
+
+升级验证期间曾在多次人工停止进程、安装版/开发版交替启动的测试环境中观察到 app-data `bindings.json` 为一个空数组，而 `profiles.json` 完整保留。该单一样本尚未在正常用户操作中复现，不能定性为 Runtime 的 Binding 丢失 Bug，也不能归因于 enigo 升级。为继续既定验证，已仅恢复此前已存在的“复制”RuntimeProfile (`rp-1788229480936-0-0`) → `F10` 绑定；未修改任何 Profile 或 Execution 数据。恢复后，enigo 0.6.1 运行实例的诊断确认“已注册 1 个全局快捷键”。
+
+### 验收隔离修正
+
+一次“F10 已收到但缺少辅助功能权限”的日志来自 `/Applications/KeyFlow Runtime.app` 安装实例，而不是 enigo 0.6.1 的源码进程；单实例机制曾把源码启动请求转交给安装实例。该日志只能说明安装版未获授权，不能作为升级后 enigo 行为的验收结论。已正常退出安装版并确认当前运行路径为 `runtime/src-tauri/target/debug/keyflow-runtime`，且其启动日志为“已注册 1 个全局快捷键”。后续实体 F10 / ChatGPT 复制结果才是有效的升级验收样本。
+
+### enigo 0.6.1 当前 macOS 样本
+
+在隔离后的源码实例中，实体 F10 连续触发均记录“已收到全局快捷键 F10”与“已收到快捷键，命令执行完成”，没有出现辅助功能拒绝。该样本证明新版执行链可完成调用；是否构成端到端通过仍以“F10 后粘贴板内容确为前台应用选区”为准。手动 Command-C/Command-V 无需 KeyFlow 自动化权限，不能单独证明 Runtime 的跨应用输入能力；对新用户机器仍必须保留权限检查与清晰错误反馈。
+
+### 建议的下一阶段顺序
+
+1. 固化 enigo 0.6.1，先补真实验收矩阵与 dev/安装包的实例隔离；不再修改 InputBackend。
+2. 将测试环境中出现的空 `bindings.json` 记录为待复核项，在正常重启、第二实例和异常退出场景补一轮持久化回归；未复现前不作为已确认缺陷或阻塞项。
+3. 制作签名安装包，并仅对安装包进行 macOS 权限、后台驻留、窗口关闭后快捷键、F10 复制的完整验收。开发二进制和 `/Applications` 包不得混用作为同一验收对象。
+4. 在 macOS 验收稳定后，在 Windows 先验证 enigo 0.6.1 的 `SEND_HOTKEY` 与 Tauri global shortcut；只有出现真实缺陷时才引入 `SendInput` adapter。
+5. 最后再进入新能力（更多 Primitive、上下文、开机自启等），避免把不稳定输入层固化到上层产品功能。
+
+## 2026-09-01：Runtime UI 与绑定交互细节收敛
+
+本轮未改变 Profile、RuntimeProfile、Binding Map 的业务语义。Settings 页面改为同一视觉层级的 Runtime 状态 Hero、分组 Panel 与低权重危险区；通知从 Header 右上角移至窗口右下角的临时 Toast，不再与“导入 Profile”竞争；右上角更多按钮点击后保持 active 状态，所在 Command Tile 同步保持轻量选中边框，关闭菜单才恢复。
+
+绑定模式新增 Runtime 级 capture gate：点击绑定/重新绑定时，先解除现有全局快捷键注册并进入“等待新的实体按键”状态，防止待绑定的 F10 等旧快捷键先执行原 Profile。前端收到键后调用既有 `bind_key`；BindingState 的 Last Binding Wins 会原子释放该 PhysicalInput 原先所属 Profile，再把它绑定给目标 Profile，最后重新注册完整的最新 BindingState。取消绑定模式会恢复原注册。该方案限制于主窗口正在进行绑定捕获的现有交互范围；未引入原始系统级 input tap。
+
+若改绑提交因无效按键或系统注册失败而失败，前端会显式调用取消 capture 的 Runtime command 恢复上一份全局注册；不会让 Runtime 因一次失败操作持续处于未注册状态。
+
+验证：`cargo check`、`cargo test`（4/4）、`npm run typecheck` 与 `npm run build` 全部通过。视觉效果需在重启后的 Tauri 窗口中人工复核 Settings、Toast、更多按钮选中态和“F10 从 A 改绑到 B 时 A 不执行、B 获得 F10”场景。
+
 ## 2026-09-01：RuntimeProfile GUI 闭环与重启恢复
 
 GUI 的 Profile 卡片仅显示名称、描述与实体按键状态；通过轻量“更多”菜单可执行绑定/重新绑定、解除绑定、改名和删除。改名通过本地 RuntimeProfile command 完成，删除有确认且只删除本地 Repository 记录；所有 import、bind、unbind、rename、delete 成功后统一重新读取 RuntimeSnapshot。
@@ -419,3 +477,43 @@ Companion Runtime 是桌面壳层的参照，不是 KeyFlow 的业务实现来�
 Runtime 使用官方 `tauri-plugin-single-instance` 作为最先初始化的插件；第二次启动不会初始化 Tray 或 Global Shortcut，而是唤醒并聚焦既有主窗口。Tray handle 被保存在 Tauri managed state，和应用同生命周期，窗口 hide/show 不会销毁 Menu Bar/System Tray 图标。
 
 退出路径统一为 `quit_keyflow()`：先标记 `AppLifecycle` 为 Quitting，再解除全局快捷键、保存 Repository 与 Binding Store，最后 `app.exit(0)`。Window CloseRequested 只有非 Quitting 状态才 prevent-close 并隐藏窗口，因此关闭窗口不等于退出 KeyFlow；Tray 与 GUI 的“退出 KeyFlow”均走显式退出路径。
+
+## 2026-09-01：Studio 第二阶段按键配置 UX 审查（实施前）
+
+### 当前配置与执行链路
+
+Studio 当前路由为 `/`、`/apps`、`/commands`、`/mapping`、`/export`，左侧导航没有主入口与高级管理分组。`/mapping` 同时展开六张完整表单；每张表单要求填写非空 `KeyBinding.name`，Action 只能从既有 App Registry 或 Command Registry 中选择。因此空白 KEY 配置一个未预置快捷键的现有流程是：先在 `/commands` 创建 `CommandDefinition`（ID、名称、平台快捷键），再到 `/mapping` 填写功能名称并选择该 Command。预置的 COPY 等命令可省略第一步，但仍需理解 Command 与逻辑按键。
+
+Studio 的单一事实源仍是三项浏览器 localStorage：`keyflow.currentProfile`、`keyflow.commandRegistry`、`keyflow.appRegistry`。`profileStore.addCommands` / `addApps` 把 Registry 定义编译为带平台 `executions` 的 `COMMAND` / `OPEN_APP` Action 并追加到 `Profile.bindings[].actions`；删除和上下移动直接修改同一有序数组。每次 Profile 变更同步调用 `localStorage.setItem` 并更新时间，但当前写入函数不返回结果，也没有保存中、成功或失败状态。
+
+导出时 `compileProfile` 会再次用当前 Registry 刷新 Action execution，随后执行 Zod 与业务校验并下载 Profile v1.2 JSON。Studio 没有调用 Runtime Tauri command，也不会主动更新已导入的 RuntimeProfile。Runtime 仅通过 `load_profile` 读取用户选择的 JSON，把每个 source binding 展开为独立本地 RuntimeProfile，另以 `bindings.json` 保存 RuntimeProfile 与实体按键的一对一关系。实体按键触发后，Runtime 走 `PhysicalInput → RuntimeProfileId → sourceBindingId → actions 原顺序 → 当前平台 execution → LAUNCH_APP / SEND_HOTKEY`。当前执行器遇到第一个失败即返回，不继续后续 Action。
+
+### 新页面复用方案
+
+新增 `/setup` 的“按键配置”作为 orchestration layer 即可，Profile Contract、Binding Map、RuntimeProfile 与 Rust 均无需修改。页面使用 Master / Detail：左侧紧凑展示六个 KEY 的推导名称与 Action 摘要，右侧只编辑当前 KEY。旧 `/apps`、`/commands`、`/mapping`、`/export` 保留，并在导航中归入低权重的“高级管理”。
+
+可直接复用：`@keyflow/contract` 的 `Profile`、`KeyBinding`、`Action`、`CommandDefinition`、`KEY_CODES` 与 Schema；三个 Zustand store；`createOpenAppAction`、`createCommandAction`、`compileProfile` 和业务校验；现有 `AppPicker` 的筛选思路；Action 有序数组的删除和上下移动能力。`CommandEditor.HotkeyField` 目前是文件内私有组件且依赖手选 key，不适合直接复用，应提取或新增面向按键捕获的快捷键编辑器。现有 Picker 文案暴露 Registry/Action 内部模型，也应由面向用户意图的新 Picker 包装，而不是原样嵌入。
+
+第一版只展示 Runtime 真实支持的两类用户动作：键盘快捷键（内部为 `COMMAND → SEND_HOTKEY`）和打开软件（内部为 `OPEN_APP → LAUNCH_APP`）。打开网址、输入文本和任意 shell 命令没有当前 Contract/Runtime primitive 支持，不能展示。功能名称默认从首个 Action 推导：已知快捷键优先匹配 COPY/PASTE 等 Registry 名称，打开软件使用“打开 + 软件名”，其他快捷键使用格式化组合键；自定义名称与说明放入“更多设置”。由于 Contract 仍要求 `binding.name` 非空，未配置项保留稳定默认名，首次添加动作时写入推导名即可，无需修改 Schema。
+
+直接创建自定义快捷键时，orchestration 必须同时在现有 Command Registry 中创建或复用 `CommandDefinition`，再通过现有 `COMMAND` Action 写入当前 binding；不能只写一个游离 Action，否则导出业务校验会因 Registry 缺失而失败，旧命令库也无法读取。建议为页面生成的命令使用稳定的内部 ID/来源标识策略，并以“相同跨平台 execution”查重；编辑由该页面独占的生成命令时可原位更新 Command 与引用 Action，若命令被多个 binding 引用则应复制后再编辑，避免隐式改变其他 KEY。清空 KEY 只清空该 binding 的 actions，并恢复默认展示名；是否删除已无引用的页面生成 Command 必须限定为可证明由 setup 创建且全局零引用，用户手建命令不得级联删除。
+
+为满足真实保存反馈，建议新增一个 store 级 orchestration 操作，把“Command upsert + binding action/name 更新”作为一次受控操作执行，捕获 localStorage 配额/安全异常并向页面返回 success/error。浏览器 localStorage 不提供真正跨 key 事务，因此需要先构造并校验 next commands/profile，再写入；若第二次写入失败应回写原快照并报告失败。普通查看、删除、排序仍操作现有 Profile，不创建第二套 setup state。
+
+### 兼容性与风险
+
+- 新旧页面读取同一 Zustand store 与 localStorage key，可实现页面级双向可见；不得新增 `setupBinding` 或第二份配置文件。
+- `CommandDefinition.executions` 与已写入 Action 的 `executions` 是重复快照；Registry 更新后旧页面不会立即刷新既有 Action，只有导出编译会刷新。新页面编辑生成命令时应同时更新当前 Action，跨页面一致性则以导出编译结果为最终准绳。
+- 当前 `addCommands` 按 `commandId` 阻止同一 binding 重复，但不能阻止不同 ID 的等价快捷键。setup 需按 execution 查重或明确允许重复动作。
+- Action 顺序已由数组和上移/下移支持；新页面应保留，不需要拖拽。
+- 当前只有一个浏览器 Profile，没有“当前 Profile 选择”问题；未来多 Profile 不能由本轮提前虚构。
+- `writeStorage` 除同步写入外没有保存状态，且写失败会直接抛出；新页面必须显示失败，不能只做瞬时“已保存”视觉。
+- Studio 没有 Runtime reload API。新页面保存后只能说明“Studio 配置已保存”，运行生效仍需导出并在 Runtime 导入；同一 JSON 重复导入当前是 Insert，会产生新的 RuntimeProfile，而不是覆盖旧记录。
+- Runtime import 会为 Profile 中全部 bindings 建立 RuntimeProfile，包括 actions 为空的 binding；清空 Web KEY 不会自动删除 Runtime 已导入的旧 RuntimeProfile，也不会解除其实体绑定。
+- 快捷键冲突目前只存在 Runtime 的实体物理按键注册冲突；Studio 配置的是输出快捷键，没有现成冲突检测 API，第一版不应伪造检测结果。
+- 平台 execution 可以仅含 Windows 或 macOS；编辑器必须清楚显示平台覆盖情况。缺少当前平台 execution 时 Runtime 返回 `UNSUPPORTED_PLATFORM`。
+- macOS `SEND_HOTKEY` 依赖当前 Runtime 二进制的辅助功能权限；Windows 系统行为仍需真实机验证。Web build 或 Schema 通过不能替代 Runtime 实机执行证据。
+
+### 实施边界与建议验收
+
+本阶段建议改动限于新页面、导航、新的 setup 组件/摘要工具与 store orchestration，不改 Contract 和 Rust。编码后的 Case 1–5 应分层记录：页面交互与 localStorage 可由浏览器实际验证；导出 JSON 可由 Schema/构建测试验证；旧页面互读可由同一浏览器会话验证；Runtime 执行、Runtime 中旧记录清理、macOS/Windows 行为必须通过手工导出导入和真实按键执行验证，未执行时标记“待确认”，不能写成已闭环。
