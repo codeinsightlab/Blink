@@ -229,3 +229,193 @@ Web localStorage 在读取时会将旧 v1.0/v1.1 Profile 升级为 v1.2：旧 Ex
 ```
 
 Runtime 不需要知道 KEY_2 的业务含义是“复制”；在 macOS 上只需读到 `SEND_HOTKEY` 和 `META + C` 后执行。
+
+## 2026-08-31：独立 KeyFlow Runtime V0 首轮实现
+
+### 工程与职责边界
+
+独立桌面项目位于 `runtime/`，采用 Tauri 2（Rust Core）和 TypeScript/Vite GUI。它不依赖 Web 源码，运行时只消费 Profile JSON；开发期唯一共享输入为 `packages/keyflow-contract/fixtures/profile-v1.2.example.json`。Fixture 解析测试直接嵌入 Rust `ProfileLoader`，以保证 Runtime DTO 与 v1.2 JSON 同步。
+
+Runtime 无业务知识，但拥有必要的操作系统能力：它能根据 `LAUNCH_APP` 的定位线索启动应用，并把 `SEND_HOTKEY.keys` 交给系统级按键模拟。它不以 `Action.type`、`appId`、`commandId`、功能名称或 Registry 分发执行；`Action` 在 Runtime 内仅作为保留顺序的 `executions` 容器。
+
+### Profile Loader 与错误模型
+
+`ProfileLoader` 支持从用户选择的 JSON 文件读取，也提供仅用于开发验证的 v1.2 fixture 加载入口。它要求版本为 `"1.2"`，并校验 Profile/Slot 名称、应用定位线索和快捷键数组。失败不会退出应用，GUI 保持 `PROFILE_ERROR` 并显示错误。
+
+错误码/错误前缀包括：`INVALID_JSON`、`UNSUPPORTED_PROFILE_VERSION`、`INVALID_PROFILE`、`UNSUPPORTED_PLATFORM`、`UNKNOWN_EXECUTION`。Runtime 不修改或回写 Profile。
+
+### Runtime State 与物理按键绑定
+
+绑定状态独立持久化在 Tauri app-data 下的 `bindings.json`，格式为：
+
+```json
+{
+  "profileId": "default",
+  "keyBindings": { "KEY_1": "F11" }
+}
+```
+
+GUI 根据当前 Profile 实际出现的 Slot 展示功能名称与描述，不预设 KEY_1～KEY_6 或 F 键。用户点击绑定后，GUI 捕获下一次实体按键；同一按键若已属于另一 Slot 则拒绝覆盖。绑定会在写入成功后重新注册全局监听；解绑也会更新持久化状态。
+
+GUI 状态固定为 `PROFILE_ERROR`、`UNBOUND`、`PARTIAL_BINDING`、`READY`，分别表达加载失败、零绑定、部分绑定和全部 Profile Slot 已绑定。
+
+### Platform Router 与 Execution Dispatcher
+
+全局监听仅注册当前 Binding Store 中的物理按键。触发后按 Slot 找到 Profile Binding，按照 `actions` 原始顺序读取 `executions[currentPlatform]`；缺少当前 OS 项记录 `UNSUPPORTED_PLATFORM`，不回退到另一平台。
+
+分发只按 `Execution.type`：
+
+```text
+LAUNCH_APP  → LaunchAppExecutor
+SEND_HOTKEY → SendHotkeyExecutor
+```
+
+固定失败策略为“记录最近错误后继续当前 Slot 的后续 Execution”。这确保多个 Action 的行为可预测，且单项失败不会让 Runtime 崩溃。
+
+### 系统能力实现与当前限制
+
+macOS 的 `LAUNCH_APP` 按 `bundleIds → appNames → knownPaths` 顺序调用 Launch Services `open`（`-b`、`-a`、路径 fallback），不拼接固定 `/Applications` 路径。Windows 边界保留为 `executableNames/aliases → knownPaths`，通过 Windows `start` 使用系统 PATH/App Execution Alias 解析；App Paths Registry 的专用查询尚未加入，属于后续 Windows 真实机验证项。
+
+`SEND_HOTKEY` 直接将 Contract `keys` 交给 `enigo` 发送，不把 COPY 等业务名称转换为快捷键。macOS 真实发送依赖系统授予辅助功能（Accessibility）权限；Windows 需要真实机验证系统事件与权限边界。
+
+首轮源代码阶段尚未具备 Rust/Cargo；后续本机已补齐工具链并完成 `cargo check`、fixture `cargo test`、TypeScript 构建和 `tauri:dev` 启动。全局监听、Chrome/VS Code 启动和系统级快捷键仍需要按实际 Profile 与 macOS 辅助功能权限逐项验收，不能由静态构建替代。
+
+## 2026-08-31：Runtime Menu Bar / System Tray 常驻模型
+
+### 产品入口与启动行为
+
+Runtime 的主要入口调整为 macOS Menu Bar / Windows System Tray。生产构建启动时默认隐藏主窗口，初始化本地 Binding Store、注册已绑定的全局快捷键并创建 Tray；开发构建保留窗口显示以便调试。主窗口只承担 Profile 导入与实体按键绑定管理，不是长期停留的管理后台。
+
+TrayController 统一提供“打开 KeyFlow”“暂停监听 / 恢复监听”“退出 KeyFlow”。左击 Tray 图标打开并聚焦现有主窗口；不会创建第二个窗口。退出前解除所有全局快捷键注册，再显式结束进程。
+
+### 窗口与监听状态
+
+用户点击主窗口关闭按钮时，WindowController 会阻止关闭并隐藏窗口；Runtime 与全局监听继续常驻。**关闭主窗口不等于退出 KeyFlow。** 只有 Tray 的“退出 KeyFlow”会结束进程。
+
+Runtime Core 新增单一 `listenerStatus`，可取 `LISTENING`、`PAUSED`、`ERROR`。Tray 菜单文本和 GUI 顶部状态均读取该状态：暂停会解除当前 global shortcuts，但保留 Profile 和 Binding；恢复会重新注册 Binding。GUI 的暂停按钮调用 Rust command，不维护第二份前端状态。
+
+### 当前平台边界与验证
+
+Tray 使用 Tauri 2 的 `tray-icon` feature、默认窗口图标和原生菜单 API，macOS 会显示为 Menu Bar 图标，Windows 会显示于 Notification Area。当前 `icon.png` 为 512×512 主图标；小尺寸/模板图标的专项视觉微调，以及 Windows Tray 的真实机点击、任务栏隐藏与权限行为，仍需各平台实机验证。
+
+## 2026-09-01：RuntimeProfile Repository 与物理绑定重构
+
+Runtime 不再把 Profile 内部 `slot` 作为物理按键身份。导入一个 Profile v1.2 文件时，Runtime adapter 会按其实际 `bindings[]` 展开为多条本地 `RuntimeProfile`；每条保存完整只读 `sourceProfile`、对应的内部 source binding id、本地显示 name/description 与 Runtime 本地 id。重复导入相同 JSON 仍会插入新的本地记录，不会覆盖已有记录。
+
+Repository 持久化到 app-data `profiles.json`，Binding 持久化到独立 `bindings.json`，且磁盘仅保存 `{ runtimeProfileId, physicalInput }` 数组。启动时会根据 Repository 清除引用已删除 RuntimeProfile 的 Binding，并重建内存 `physicalToProfile` 与 `profileToPhysical` 双向索引。
+
+绑定规则为一对一且 Last Binding Wins：一个新的 `RuntimeProfile → PhysicalInput` 关系会自动释放该输入原有归属，也会释放该 Profile 的旧输入，然后更新两张内存 Map、注册全局快捷键并持久化。按键触发流程为 `PhysicalInput → RuntimeProfileId → RuntimeProfile.sourceProfile 的指定功能 → 当前平台 Execution`。Pause/Resume 改为遍历此新 Binding Map 解除或恢复注册；Tray 和 GUI 继续读取同一 Runtime Core 状态。
+
+## 2026-09-01：Runtime UI / UX 视觉升级
+
+Runtime 默认采用深石墨 Personal Command Deck 视觉：CSS Variables 统一背景、层级 Surface、文字、边框、状态色、圆角与间距；不引入新业务状态。主窗口以 KEYFLOW / Personal Command Deck Header、简洁 LIVE 状态、Command 卡片、实体按键 Keycap 和低权重导入入口构成。
+
+Binding Mode 直接将当前卡片转为 accent 边框与“等待输入”提示；已绑定实体输入呈键帽视觉，未绑定呈命令式“+ 绑定”。更多菜单、重命名和删除使用轻量界面层，删除保留原始 Profile 文件的说明。状态点仅在 LISTENING 时以低频呼吸动画出现，并尊重 `prefers-reduced-motion`。
+
+Runtime 局部 `postcss.config.cjs` 使 Vite 不再继承根项目的 Tailwind 配置，已消除 `Tailwind content missing` 构建警告。
+
+## 2026-09-01：Runtime GUI 参考图收敛、按键捕获与图标选择
+
+主窗口调整为 560×740（最小 500×640）的紧凑桌面工具比例。视觉结构改为深色 Header、KEYFLOW / Personal Command Deck 品牌区、LIVE 状态胶囊、图标化 Profile 卡片、实体 Keycap、底部导入入口。卡片不再使用业务编号；`Space` 使用宽键帽展示，未绑定维持“+ 绑定”命令入口。
+
+绑定捕获监听在 `window` capture 阶段执行。进入绑定前会失焦当前控件，捕获期间阻止默认行为与继续传播，因此 Space 不会再触发按钮 click，而是以 `Space` 作为物理输入提交；Escape 仅取消绑定，不会成为绑定值。
+
+更多菜单从卡片 DOM 层级中抽离，按触发按钮的屏幕坐标渲染为 fixed popover，并配合独立的 click-away layer。菜单不会被相邻卡片或滚动容器覆盖，点击操作和点击外部关闭均属于同一交互层。
+
+`RuntimeProfile` 增加本地可选 `iconId`，以 `serde(default)` 兼容既有 `profiles.json`；导入仍默认无图标并在 GUI 统一显示 Command 图标。图标不从 Profile 业务信息推断。GUI 通过 `set_profile_icon` command 持久化用户在 24 个内置 SVG 图标中选择的结果，保留 `sourceProfile` 只读、Import = Insert 与 Binding/Execution 的既有语义。
+
+## 2026-09-01：Runtime 左右分栏与 Command Tile 网格
+
+Runtime 主窗口调整为 880×640，最小尺寸为 760×540。界面由 176px 的深色 Sidebar 和可滚动的 Main Content 组成：Sidebar 只有 Command Deck、设置以及底部单一监听状态；不引入不存在的账户、设备、云同步或统计模块。
+
+Command Deck 的 Header 保持固定，提供 Profile 数量与导入入口。RuntimeProfile 以三列紧凑 Tile 呈现；当窗口接近最小宽度时自动改为两列。Tile 只包含图标、名称、单行描述、固定底部 Keycap/绑定入口和右上角更多菜单。Profile 较多时仅右侧网格滚动，Sidebar 与 Header 不参与滚动。
+
+Settings 为前端轻量页面状态，不引入路由框架。它仅暴露现有 Runtime 真相：监听暂停/恢复、关闭窗口后继续驻留说明和显式退出。Space capture、Escape cancel、fixed More Menu popover、Icon Picker、Rename/Delete 与所有 Runtime Core 语义不随本次布局变化。
+
+## 2026-09-01：Runtime macOS 原生窗口质感收敛
+
+Runtime 的 Tauri 2 窗口改为 1120×760（最小 900×620），使用 `titleBarStyle: "Overlay"`、`hiddenTitle: true` 与原生 `trafficLightPosition`。窗口仍保留系统 decorations，因此关闭、最小化、缩放/全屏均为 macOS 原生 Traffic Light，不存在 CSS 模拟按钮；前端只在顶部提供不覆盖控件的 Tauri drag region。
+
+视觉层以 Mail/Finder 的空间尺度为参考而不引入其业务结构：Sidebar 调整为 232px、导航行 34px、标题/按钮/辅助文字均收敛，主分栏只保留低对比 1px divider。Tile、菜单、Dialog 与 Settings 面板缩小圆角、边框和内部阴影；Settings 继续限制为最大 480px 的紧凑 Panel，命令 Grid 维持原有模块语义和滚动边界。
+
+## 2026-09-01：Runtime Raycast 风格玻璃材质
+
+不改变既有 Sidebar + Content 结构、窗口尺寸、三列 Command Tile、Header 文案或业务交互，仅重构 CSS token 与表面材质。窗口以深蓝黑和极弱冷紫/冷蓝环境渐变建立统一空间；Sidebar、Content、Tile、Menu、Settings 与 Dialog 使用低饱和半透明 surface、细微高光边缘和受控的 backdrop blur，而非纯黑色块或高饱和霓虹。
+
+新的 token 明确区分 window/sidebar/content 背景、普通/抬升/hover/selected surface、Card surface、subtle border、divider、低饱和 accent 与柔和 LIVE green。卡片 hover 仅增强表面和边缘，不移动布局；Binding 使用克制的蓝紫层次。若系统/WebView 对真实 backdrop blur 支持有限，渐变透明层、内侧 1px 高光与低对比边界仍会提供同等的玻璃层次感。
+
+## 2026-09-01：macOS COPY Profile 执行核查
+
+`keyflow-profile (1).json` 的 Web 输出符合 Profile v1.2 Contract：`binding-key-1` 的 macOS Execution 为 `SEND_HOTKEY`，keys 为 `META`、`C`。Runtime 解析只按 `executions.macos` 与 Execution.type 分发，不依赖 `commandId: COPY`；`SendHotkeyExecutor` 将其按 Meta press → c press → c release → Meta release 的顺序交给 enigo。新增单元测试固定验证此 Contract 映射。
+
+该 JSON 只包含逻辑 Slot `KEY_1`，没有物理键映射；导入后 Runtime 会创建本地 RuntimeProfile，用户仍需在 GUI 为“复制”绑定一个实体输入，才能注册 global shortcut。此行为是已冻结的 RuntimeProfile ↔ PhysicalInput 模型，不是 Web 导出遗漏。macOS 最终真实复制仍依赖运行 KeyFlow 二进制获得系统“辅助功能”权限，以及触发时目标 App 中确有可复制的选区；Terminal/System Events 的授权不能替代对 KeyFlow Runtime 自身的授权。
+
+## 2026-09-01：macOS 全局快捷键与跨应用执行审查
+
+### 结论与边界
+
+KeyFlow 不是 Electron；它使用 Tauri 2 的 `tauri-plugin-global-shortcut`，在 Rust Runtime 进程中创建 `GlobalHotKeyManager`。渲染层唯一的 `window.addEventListener("keydown")` 仅在 GUI Binding Mode 下捕获“下一次输入”以建立 Binding；绑定完成后不承担命令触发。因此代码并非把已绑定命令依赖于 WebView 焦点。
+
+全局 Binding 的生命周期为：启动时从 `bindings.json` 载入并 `refresh_listener`；bind/rebind/unbind 通过 `commit_bindings` 先 unregister-all 再注册整份候选状态；Pause unregister-all；Resume 重新注册；显式退出解除所有注册。Window close 被 `prevent_close` 后 hide，Tray 与 Runtime Process 保持，因此关闭主窗口不应停止全局注册。
+
+### 已确认缺口
+
+操作系统或其他应用占用快捷键时，插件 `register` 会返回错误，Runtime 会进入 `ERROR` 并回滚旧注册，但启动路径用 `.ok()` 丢弃具体错误，GUI bind 路径也只显示“无法绑定此按键”；没有针对 Profile 的“快捷键不可用/冲突原因”状态。`SEND_HOTKEY` 使用 enigo 模拟键盘；其错误写入 `last_error`，但前端未显示 `RuntimeSnapshot.lastError`。因此当前实现不能从 GUI 区分“全局事件未到达”和“事件已到达但 macOS 拒绝向其他 App 注入输入”。
+
+### 最小修复建议（未在本审查实施）
+
+1. 将注册结果按 PhysicalInput 持久化为 GUI 可读状态，并展示系统占用/解析失败的具体原因；启动恢复也不得吞掉注册错误。
+2. 在 global callback、Profile dispatch 与 enigo 执行失败处写入结构化本地日志/最近执行状态，以便定位 A（捕获）与 B（跨应用自动化）。
+3. 在 Settings 明确显示 KeyFlow Runtime 自身的 macOS 辅助功能授权状态和可操作指引。未获授权时，不应把跨应用复制失败表现为静默无反应。
+
+### 后续最小诊断实现
+
+为区分实际问题 A/B，Runtime 现将全局快捷键回调写入 `lastEvent`：收到 Binding 时先记录“已收到全局快捷键 <PhysicalInput>”，所有 Execution 成功后记录“命令执行完成”；enigo/平台执行失败则记录“已收到快捷键，但命令执行失败”及原始错误。每次状态变化通过 Tauri event 通知前端，Settings 的“快捷键诊断”显示最近全局事件与最近命令结果。该改动不改变 Binding、Profile、Execution 或系统调用语义，仅提供可验证的运行证据。
+
+### 受控后台验证（待真实键盘复核）
+
+在当前 macOS app-data 的 `bindings.json` 中，复制 RuntimeProfile 的实际持久化 PhysicalInput 为 `F10`，不是口述的 F8。受控流程将 KeyFlow Runtime 运行于后台、TextEdit 放到前台，选中临时文本后通过 System Events 合成 F10；随后剪贴板未得到测试文本。该结果只能证明此合成路径没有完成复制，不能证明真实 F10 的全局捕获失败：macOS 全局 hotkey API 可以忽略由 System Events/Quartz 合成而非实体键盘产生的事件。下一步必须使用实体 F10 触发，并从 Settings 的新增诊断读取 A（未收到全局快捷键）或 B（已收到但 enigo 失败）的具体证据。
+
+### 当前版本启动核验
+
+曾经运行的实例来自 `/Volumes/dmg.../KeyFlow Runtime.app`，不是源码的开发构建；单实例插件会把新的 `tauri dev` 启动转交给该旧实例，因而旧实例不会具备新增的诊断代码。正常退出该实例后，当前源码构建已实际启动，并在 app-data 的 `runtime-diagnostics.log` 写入“已注册 1 个全局快捷键”。这证明 F10 已被 macOS `RegisterEventHotKey` 成功接受，而不是在注册阶段静默失败。
+
+底层 `global-hotkey 0.8.0` 的 macOS 实现使用 Carbon `RegisterEventHotKey` 与 application event target；`F10` 解析为 `Code::F10`，扫描码为 `0x6d`，映射无误。仍缺少的是一次实体键盘触发后日志中的“已收到全局快捷键 F10”：没有该行时，问题位于 macOS 事件投递/键盘层；有该行但随后命令失败时，问题位于 enigo 的跨应用注入层。合成键盘事件不能作为该分界的替代证据。
+
+### 实体 F10 复核与 COPY 解析结论
+
+实体 F10 已在 ChatGPT 前台场景触发多次；`runtime-diagnostics.log` 每次均记录“已收到全局快捷键 F10”，紧接着记录“已收到快捷键，命令执行完成”。因此全局监听、Binding 查找、RuntimeProfile 定位、Profile v1.2 的 macOS Execution 选择和 Dispatcher 调用均已被真实运行证据覆盖，问题不在 F10 监听。
+
+COPY 的 `META` 也不存在 macOS 解析错误：Profile keys 是 `["META", "C"]`，Runtime 转成 `Key::Meta` 和 `Key::Unicode('c')`；enigo 0.2.1 的 macOS 后端明确将 `Key::Meta` 映射为 `KeyCode::COMMAND`，即左 Command。按键顺序为 Command down、C down、C up、Command up，符合复制语义。
+
+根因是 enigo 的 macOS `CGEventPost` API 没有返回“目标应用已接受事件”的结果；旧代码把 key event 已提交给 CoreGraphics 误报为“命令执行完成”。Runtime 现会在 `SEND_HOTKEY` 前直接调用 macOS `AXIsProcessTrusted()`；若当前实际运行的 KeyFlow 二进制没有辅助功能权限，则返回明确错误而非假成功。注意 `/Volumes/dmg...` 的旧 App 与 `target/debug/keyflow-runtime` 的开发二进制不是同一个可直接互相证明授权的运行实体，必须以当前正在运行的二进制的检查结果为准。
+
+### 授权复核与注入层结论
+
+在加入 `AXIsProcessTrusted()` 检查后再次以实体 F10 触发，诊断没有出现辅助功能拒绝错误，仍显示 F10 已收到且 `SEND_HOTKEY` 已返回。故当前开发二进制已通过该 macOS 授权检查；不能再把本次“未复制”归因为未授权或 `META` 键解析错误。
+
+enigo 0.2.1 的 macOS 实现对每个按下/释放事件调用 `CGEvent::new_keyboard_event(...).post(CGEventTapLocation::HID)`，投递 API 本身没有成功/失败返回值。它无法证明 ChatGPT 已执行复制；该库也存在公开的 macOS 修饰键组合兼容性问题。当前需要替换或补强的是 macOS 跨应用输入注入实现，并以 TextEdit/ChatGPT 的真实选区验证，而不是继续调整 Profile 的 `["META", "C"]` Contract 或 F10 global shortcut。
+
+## 2026-09-01：RuntimeProfile GUI 闭环与重启恢复
+
+GUI 的 Profile 卡片仅显示名称、描述与实体按键状态；通过轻量“更多”菜单可执行绑定/重新绑定、解除绑定、改名和删除。改名通过本地 RuntimeProfile command 完成，删除有确认且只删除本地 Repository 记录；所有 import、bind、unbind、rename、delete 成功后统一重新读取 RuntimeSnapshot。
+
+启动恢复从 `profiles.json` 加载 Repository，再从 `bindings.json` 加载 Binding。孤儿 Binding 会被过滤，磁盘异常的重复 PhysicalInput 按文件顺序 Last Binding Wins 重建双向 Map，并立即把清理后的 bindings.json 写回。PAUSED 不持久化，启动一律恢复为 LISTENING 并注册有效按键。
+
+## 2026-09-01：Tray 主入口操作补充
+
+Tray/Menu Bar 的主操作明确为“显示主界面”和“退出 KeyFlow”。左键点击图标会显示并聚焦现有主窗口；菜单中的“显示主界面”走同一个 WindowController 路径。退出继续走统一 `quit_keyflow()`，不是 Window CloseRequested。
+
+## 2026-09-01：Companion Runtime 设计对齐审查
+
+Companion Runtime 是桌面壳层的参照，不是 KeyFlow 的业务实现来源。Companion 的链路是外部事件到角色行为；KeyFlow 的链路是实体输入到 Profile Execution。因此 KeyFlow 不引入 Behavior/Event 总线、Character Registry、桌宠窗口或 Electron 依赖。
+
+应对齐的是壳层纪律：Companion 将启动、单实例、Tray 生命周期、窗口显示/隐藏及有序退出收敛为 LifecycleManager、WindowManager 与 TrayManager，并为这些边界定义可替换接口和测试。KeyFlow 已具备相应能力，但当前编排仍主要集中在 `src-tauri/src/main.rs`。
+
+后续对齐顺序是：抽出不改变 Binding/Execution 语义的 RuntimeLifecycleController；让 `window.rs` 成为唯一 show/hide/focus 入口；让 `tray.rs` 完整拥有 Tray create/destroy/菜单刷新；补齐 lifecycle 退出顺序与失败回滚测试；增加最小结构化本地日志记录启动、Tray、快捷键注册、暂停/恢复、退出。不记录业务 Execution 内容或敏感 Profile 数据。
+
+## 2026-09-01：Runtime 常驻壳能力补全
+
+Runtime 使用官方 `tauri-plugin-single-instance` 作为最先初始化的插件；第二次启动不会初始化 Tray 或 Global Shortcut，而是唤醒并聚焦既有主窗口。Tray handle 被保存在 Tauri managed state，和应用同生命周期，窗口 hide/show 不会销毁 Menu Bar/System Tray 图标。
+
+退出路径统一为 `quit_keyflow()`：先标记 `AppLifecycle` 为 Quitting，再解除全局快捷键、保存 Repository 与 Binding Store，最后 `app.exit(0)`。Window CloseRequested 只有非 Quitting 状态才 prevent-close 并隐藏窗口，因此关闭窗口不等于退出 KeyFlow；Tray 与 GUI 的“退出 KeyFlow”均走显式退出路径。
