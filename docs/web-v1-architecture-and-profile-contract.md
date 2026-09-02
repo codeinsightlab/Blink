@@ -230,6 +230,56 @@ Web localStorage 在读取时会将旧 v1.0/v1.1 Profile 升级为 v1.2：旧 Ex
 
 Runtime 不需要知道 KEY_2 的业务含义是“复制”；在 macOS 上只需读到 `SEND_HOTKEY` 和 `META + C` 后执行。
 
+## 2026-09-02：Runtime V1 Keycap、快捷键展示层与统一图标
+
+### 实施前审查结论
+
+Runtime GUI 当前采用 Tauri 2 + Rust Core + 原生 TypeScript/Vite；页面由 `runtime/src/main.ts` 的字符串模板渲染，没有 React/Vue 组件体系。全局样式与 Design Token 位于 `runtime/src/style.css`。Profile v1.2 的共享事实源仍是 `packages/keyflow-contract`；Rust `Profile` 只做对应 DTO 映射，`SEND_HOTKEY` 的唯一数据结构为 `{ type: "SEND_HOTKEY", keys: KeyCode[] }`。
+
+Runtime 存在两类容易混淆但语义不同的快捷键：
+
+- `bindings.json` 中的 `physicalInput` 是用户在本机为 RuntimeProfile 绑定的实体触发键。
+- Profile `actions[].executions[platform].keys` 是 Profile 编译后携带的动作执行快捷键。
+
+执行层按当前构建平台读取 `executions.windows` 或 `executions.macos`，然后把原始 `keys` 直接传给 `execution::dispatch`。本轮只让 snapshot 额外暴露同一路径下首个 `SEND_HOTKEY.keys` 供系统动作卡片展示；没有修改 Profile、RuntimeProfile 持久化结构或 Executor 输入。
+
+此前 GUI 在 `main.ts` 内维护一套手写 SVG path 字典，业务模板直接调用 `icon(id)`；快捷键则把整个 `physicalInput` 字符串塞进单个 `.keycap`，没有独立 formatter，也没有未知键展示约束。
+
+### 表现层与数据流
+
+新增表现层严格保持以下两条链路分离：
+
+```text
+Profile → Runtime snapshot actionHotkey → formatHotkeyForDisplay → HotkeyDisplay → Keycap → UI
+Profile → executions[currentPlatform] → Primitive Executor
+```
+
+`formatHotkeyForDisplay` 只完成 trim/大写、稳定 modifier 展示排序和平台标签转换。macOS 使用 `⌃ ⌥ ⇧ ⌘`，Windows 使用 `Ctrl Alt Shift Win`；字符键、F1–F12 和 Contract 已有特殊键按原始含义显示。正式 Contract 使用 `CTRL`，Formatter 仅为展示兼容把旧/raw `CONTROL` 同样标成 Ctrl，未向 Schema 或 Executor 增加该键。其他未知 key code 保留原值并以虚线 Keycap 标记，不回退为空，也不替换为其他按键。稳定排序仅作用于返回给 UI 的新数组，不修改 Profile 或 Executor 使用的原数组。
+
+实体触发键也复用同一个 `HotkeyDisplay`/`Keycap`，但来源仍是 Runtime 本地绑定。未绑定项只显示低权重“＋ 绑定”，不渲染空 Keycap。监听暂停或注册失败会在 Keycap 后显示克制的状态文字；渲染器也预留 `conflict` 状态。当前 BindingState 采用单一物理键单一 Profile 且新绑定 last-wins，因此 snapshot 不会产生持久化冲突项。Keycap 本身不使用大面积错误色。
+
+### Icon System 决策
+
+Runtime 主图标库统一为 Lucide。选择原因是：现有手写图标本身已经接近 Lucide 的 24px outline 语言，Lucide 可覆盖导航、导入、设置、菜单和八种系统动作，接入后无需引入 UI framework。新增唯一生产依赖 `lucide`，业务模板只能通过 `RuntimeIcon(name)` 使用受控语义名称；该封装按需导入 IconNode 并生成 SVG，页面不再直接维护 SVG path 或混用第二套 icon set。
+
+### UI 结构调整
+
+外部 Profile 改为紧凑“我的命令”列表，列为名称/描述、来源、本机绑定和弱化操作菜单；已绑定 Keycap 可直接点击重新绑定。系统内置项保留 Compact Tile，动作区展示 Profile 的实际 `SEND_HOTKEY.keys`，底部“＋ 绑定”仍表示实体触发键绑定。两处快捷键视觉使用同一个 formatter 和 Keycap 渲染器。
+
+Runtime 没有也不允许建立 `COPY → META+C`、`PASTE → META+V` 等业务快捷键映射。系统动作名称只用于选择区分性的 Lucide 图标，不参与快捷键展示或执行。
+
+### 2026-09-02：系统动作自捕获与解绑入口修复
+
+用户将单字符实体键绑定到系统动作后，诊断日志曾连续出现同一实体键“执行完成”，但前台应用没有得到预期效果。根因是 Runtime 在执行 `SEND_HOTKEY` 时仍保持全局实体键注册：例如 `C → 复制` 会注入 `META + C`，其中注入的 `C` 又命中 Runtime 自己的全局 `C` 注册，产生递归自捕获。Profile、系统动作 keys 与 Enigo 映射均存在，不能把 Executor 的无错误返回误判为端到端执行成功。
+
+当前 `dispatch_profile` 在取得不可变的原始 Execution 与 BindingState 快照后，先撤销全部全局快捷键注册，再按 Profile 顺序执行 Primitive，最后使用原 BindingState 恢复注册。执行期间注入的按键不会再回流到 Runtime handler。恢复失败会把 listener 置为 `ERROR` 并写入诊断日志；不会继续声称命令成功。该隔离没有修改 Profile keys，也没有增加命令语义判断。
+
+上述首版隔离随后被运行时事实推翻：最新日志两次停在“已收到全局快捷键 C”，既没有完成/失败诊断，也没有生成 macOS `.ips`，进程直接退出。崩溃点位于 global-shortcut 插件自己的 handler 回调栈内调用 `unregister_all()`；在该回调内改变同一插件的注册表不安全，因此该方案已完整撤销。
+
+稳定修复不再在执行路径修改全局注册表。`RuntimeCore` 维护只在内存存在的 `suppress_shortcuts_until`：执行 Profile 前开启 500ms 隔离窗口，执行完成后保留 250ms 尾窗；global-shortcut handler 在窗口内直接忽略 Runtime 注入产生的回流事件。Profile 原始 Execution、持久化 BindingState 与注册表均不修改，正常用户输入在极短尾窗后继续由既有 handler 处理。
+
+后端 `unbind_profile` 一直同时支持 SYSTEM 与 EXTERNAL RuntimeProfile；此前仅外部项的更多菜单接入了该命令。系统 Tile 现对已绑定项在 Keycap 后显示低权重“解绑”，仍复用相同后端事务：生成 next BindingState、重新注册、持久化，失败时保留 previous state。
+
 ## 2026-08-31：独立 KeyFlow Runtime V0 首轮实现
 
 ### 工程与职责边界
