@@ -3,21 +3,31 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
+    "format": "npm run format:web && npm run format:rust",
+    "format:check": "npm run format:web:check && npm run format:rust:check",
+    "format:web": "prettier --write \"{src,tests,packages/keyflow-contract,runtime/src}/**/*.{ts,tsx,js,css,json}\" \"*.{js,ts,json,html}\" \"runtime/*.{ts,cjs,json,html}\" \"runtime/src-tauri/{tauri.conf.json,capabilities/*.json,fixtures/*.json}\"",
+    "format:web:check": "prettier --check \"{src,tests,packages/keyflow-contract,runtime/src}/**/*.{ts,tsx,js,css,json}\" \"*.{js,ts,json,html}\" \"runtime/*.{ts,cjs,json,html}\" \"runtime/src-tauri/{tauri.conf.json,capabilities/*.json,fixtures/*.json}\"",
+    "format:rust": "cargo fmt --manifest-path runtime/src-tauri/Cargo.toml",
+    "format:rust:check": "cargo fmt --manifest-path runtime/src-tauri/Cargo.toml -- --check",
     "dev": "vite",
     "build": "tsc -p packages/keyflow-contract/tsconfig.json --pretty false && tsc -b && vite build",
     "preview": "vite preview",
+    "test:models": "node --experimental-strip-types tests/model-tests.ts",
+    "test:parity": "node --experimental-strip-types tests/profile-parity.ts",
     "typecheck": "tsc -p packages/keyflow-contract/tsconfig.json --pretty false && tsc -b --pretty false"
   },
   "dependencies": {
     "@keyflow/contract": "workspace:*",
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
     "react-router-dom": "latest",
+    "vite": "latest",
     "zod": "latest",
     "zustand": "latest"
   },
@@ -26,6 +36,7 @@
     "@types/react-dom": "latest",
     "autoprefixer": "latest",
     "postcss": "latest",
+    "prettier": "3.9.6",
     "tailwindcss": "^3.4.17",
     "typescript": "latest"
   }

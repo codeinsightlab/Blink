@@ -1,0 +1,25 @@
+{
+  "version": "2.0",
+  "name": "打开工作台",
+  "description": "打开 Chrome，然后复制",
+  "actions": [
+    {
+      "type": "OPEN_APP",
+      "executions": {
+        "windows": { "type": "LAUNCH_APP", "executableNames": ["chrome.exe"] },
+        "macos": {
+          "type": "LAUNCH_APP",
+          "bundleIds": ["com.google.Chrome"],
+          "appNames": ["Google Chrome.app"]
+        }
+      }
+    },
+    {
+      "type": "COMMAND",
+      "executions": {
+        "windows": { "type": "SEND_HOTKEY", "keys": ["CTRL", "C"] },
+        "macos": { "type": "SEND_HOTKEY", "keys": ["META", "C"] }
+      }
+    }
+  ]
+}

@@ -1,10 +1,13 @@
-import type { MacOSAppDefinition, WindowsAppDefinition } from "./app";
-import type { KeyCode } from "./constants";
+import type { KeyCode } from "./constants.ts";
 
-export type WindowsAppExecutionTarget = WindowsAppDefinition;
-export type MacOSAppExecutionTarget = MacOSAppDefinition;
-
-export type LaunchAppExecution<TApp = WindowsAppExecutionTarget | MacOSAppExecutionTarget> = { type: "LAUNCH_APP" } & TApp;
+export interface LaunchAppExecution {
+  type: "LAUNCH_APP";
+  executableNames?: string[];
+  aliases?: string[];
+  bundleIds?: string[];
+  appNames?: string[];
+  knownPaths?: string[];
+}
 
 export interface SendHotkeyExecution {
   type: "SEND_HOTKEY";

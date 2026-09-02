@@ -1,25 +1,236 @@
 [
-  {"id":"chrome","name":"Google Chrome","category":"Browser","description":"Google 浏览器","platforms":{"windows":{"executableNames":["chrome.exe"]},"macos":{"bundleIds":["com.google.Chrome"],"appNames":["Google Chrome.app"]}},"enabled":true},
-  {"id":"edge","name":"Microsoft Edge","category":"Browser","platforms":{"windows":{"executableNames":["msedge.exe"]},"macos":{"bundleIds":["com.microsoft.edgemac"],"appNames":["Microsoft Edge.app"]}},"enabled":true},
-  {"id":"firefox","name":"Firefox","category":"Browser","platforms":{"windows":{"executableNames":["firefox.exe"]},"macos":{"bundleIds":["org.mozilla.firefox"],"appNames":["Firefox.app"]}},"enabled":true},
-  {"id":"wechat","name":"微信","category":"Communication","platforms":{"windows":{"executableNames":["WeChat.exe"]},"macos":{"bundleIds":["com.tencent.xinWeChat"],"appNames":["WeChat.app"]}},"enabled":true},
-  {"id":"wecom","name":"企业微信","category":"Communication","platforms":{"windows":{"executableNames":["WXWork.exe"]},"macos":{"bundleIds":["com.tencent.WeWorkMac"],"appNames":["企业微信.app"]}},"enabled":true},
-  {"id":"qq","name":"QQ","category":"Communication","platforms":{"windows":{"executableNames":["QQ.exe"]},"macos":{"bundleIds":["com.tencent.qq"],"appNames":["QQ.app"]}},"enabled":true},
-  {"id":"dingtalk","name":"钉钉","category":"Communication","platforms":{"windows":{"executableNames":["DingTalk.exe"]},"macos":{"appNames":["DingTalk.app"]}},"enabled":true},
-  {"id":"feishu","name":"飞书","category":"Communication","platforms":{"windows":{"executableNames":["Feishu.exe"]},"macos":{"appNames":["Feishu.app"]}},"enabled":true},
-  {"id":"discord","name":"Discord","category":"Communication","platforms":{"windows":{"executableNames":["Discord.exe"]},"macos":{"bundleIds":["com.hnc.Discord"],"appNames":["Discord.app"]}},"enabled":true},
-  {"id":"slack","name":"Slack","category":"Communication","platforms":{"windows":{"executableNames":["slack.exe"]},"macos":{"bundleIds":["com.tinyspeck.slackmacgap"],"appNames":["Slack.app"]}},"enabled":true},
-  {"id":"telegram","name":"Telegram","category":"Communication","platforms":{"windows":{"executableNames":["Telegram.exe"]},"macos":{"appNames":["Telegram.app"]}},"enabled":true},
-  {"id":"whatsapp","name":"WhatsApp","category":"Communication","platforms":{"windows":{"executableNames":["WhatsApp.exe"]},"macos":{"appNames":["WhatsApp.app"]}},"enabled":true},
-  {"id":"excel","name":"Microsoft Excel","category":"Office","platforms":{"windows":{"executableNames":["EXCEL.EXE"]},"macos":{"bundleIds":["com.microsoft.Excel"],"appNames":["Microsoft Excel.app"]}},"enabled":true},
-  {"id":"word","name":"Microsoft Word","category":"Office","platforms":{"windows":{"executableNames":["WINWORD.EXE"]},"macos":{"bundleIds":["com.microsoft.Word"],"appNames":["Microsoft Word.app"]}},"enabled":true},
-  {"id":"powerpoint","name":"Microsoft PowerPoint","category":"Office","platforms":{"windows":{"executableNames":["POWERPNT.EXE"]},"macos":{"bundleIds":["com.microsoft.Powerpoint"],"appNames":["Microsoft PowerPoint.app"]}},"enabled":true},
-  {"id":"wps","name":"WPS Office","category":"Office","platforms":{"windows":{"executableNames":["wps.exe"]},"macos":{"appNames":["wpsoffice.app"]}},"enabled":true},
-  {"id":"capcut","name":"剪映","category":"Creative","platforms":{"windows":{"executableNames":["JianyingPro.exe"]},"macos":{"appNames":["剪映专业版.app"]}},"enabled":true},
-  {"id":"photoshop","name":"Adobe Photoshop","category":"Creative","platforms":{"windows":{"executableNames":["Photoshop.exe"]},"macos":{"appNames":["Adobe Photoshop.app"]}},"enabled":true},
-  {"id":"illustrator","name":"Adobe Illustrator","category":"Creative","platforms":{"windows":{"executableNames":["Illustrator.exe"]},"macos":{"appNames":["Adobe Illustrator.app"]}},"enabled":true},
-  {"id":"premiere-pro","name":"Adobe Premiere Pro","category":"Creative","platforms":{"windows":{"executableNames":["Adobe Premiere Pro.exe"]},"macos":{"appNames":["Adobe Premiere Pro.app"]}},"enabled":true},
-  {"id":"obs","name":"OBS Studio","category":"Creative","platforms":{"windows":{"executableNames":["obs64.exe","obs32.exe"]},"macos":{"bundleIds":["com.obsproject.obs-studio"],"appNames":["OBS.app"]}},"enabled":true},
-  {"id":"vscode","name":"Visual Studio Code","category":"Developer","platforms":{"windows":{"executableNames":["Code.exe"]},"macos":{"bundleIds":["com.microsoft.VSCode"],"appNames":["Visual Studio Code.app"]}},"enabled":true},
-  {"id":"cursor","name":"Cursor","category":"Developer","platforms":{"windows":{"executableNames":["Cursor.exe"]},"macos":{"bundleIds":["com.todesktop.230313mzl4w4u92"],"appNames":["Cursor.app"]}},"enabled":true}
+  {
+    "id": "chrome",
+    "name": "Google Chrome",
+    "category": "Browser",
+    "description": "Google 浏览器",
+    "platforms": {
+      "windows": { "executableNames": ["chrome.exe"] },
+      "macos": { "bundleIds": ["com.google.Chrome"], "appNames": ["Google Chrome.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "edge",
+    "name": "Microsoft Edge",
+    "category": "Browser",
+    "platforms": {
+      "windows": { "executableNames": ["msedge.exe"] },
+      "macos": { "bundleIds": ["com.microsoft.edgemac"], "appNames": ["Microsoft Edge.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "firefox",
+    "name": "Firefox",
+    "category": "Browser",
+    "platforms": {
+      "windows": { "executableNames": ["firefox.exe"] },
+      "macos": { "bundleIds": ["org.mozilla.firefox"], "appNames": ["Firefox.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "wechat",
+    "name": "微信",
+    "category": "Communication",
+    "platforms": {
+      "windows": { "executableNames": ["WeChat.exe"] },
+      "macos": { "bundleIds": ["com.tencent.xinWeChat"], "appNames": ["WeChat.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "wecom",
+    "name": "企业微信",
+    "category": "Communication",
+    "platforms": {
+      "windows": { "executableNames": ["WXWork.exe"] },
+      "macos": { "bundleIds": ["com.tencent.WeWorkMac"], "appNames": ["企业微信.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "qq",
+    "name": "QQ",
+    "category": "Communication",
+    "platforms": {
+      "windows": { "executableNames": ["QQ.exe"] },
+      "macos": { "bundleIds": ["com.tencent.qq"], "appNames": ["QQ.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "dingtalk",
+    "name": "钉钉",
+    "category": "Communication",
+    "platforms": {
+      "windows": { "executableNames": ["DingTalk.exe"] },
+      "macos": { "appNames": ["DingTalk.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "feishu",
+    "name": "飞书",
+    "category": "Communication",
+    "platforms": {
+      "windows": { "executableNames": ["Feishu.exe"] },
+      "macos": { "appNames": ["Feishu.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "discord",
+    "name": "Discord",
+    "category": "Communication",
+    "platforms": {
+      "windows": { "executableNames": ["Discord.exe"] },
+      "macos": { "bundleIds": ["com.hnc.Discord"], "appNames": ["Discord.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "slack",
+    "name": "Slack",
+    "category": "Communication",
+    "platforms": {
+      "windows": { "executableNames": ["slack.exe"] },
+      "macos": { "bundleIds": ["com.tinyspeck.slackmacgap"], "appNames": ["Slack.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "telegram",
+    "name": "Telegram",
+    "category": "Communication",
+    "platforms": {
+      "windows": { "executableNames": ["Telegram.exe"] },
+      "macos": { "appNames": ["Telegram.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "whatsapp",
+    "name": "WhatsApp",
+    "category": "Communication",
+    "platforms": {
+      "windows": { "executableNames": ["WhatsApp.exe"] },
+      "macos": { "appNames": ["WhatsApp.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "excel",
+    "name": "Microsoft Excel",
+    "category": "Office",
+    "platforms": {
+      "windows": { "executableNames": ["EXCEL.EXE"] },
+      "macos": { "bundleIds": ["com.microsoft.Excel"], "appNames": ["Microsoft Excel.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "word",
+    "name": "Microsoft Word",
+    "category": "Office",
+    "platforms": {
+      "windows": { "executableNames": ["WINWORD.EXE"] },
+      "macos": { "bundleIds": ["com.microsoft.Word"], "appNames": ["Microsoft Word.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "powerpoint",
+    "name": "Microsoft PowerPoint",
+    "category": "Office",
+    "platforms": {
+      "windows": { "executableNames": ["POWERPNT.EXE"] },
+      "macos": {
+        "bundleIds": ["com.microsoft.Powerpoint"],
+        "appNames": ["Microsoft PowerPoint.app"]
+      }
+    },
+    "enabled": true
+  },
+  {
+    "id": "wps",
+    "name": "WPS Office",
+    "category": "Office",
+    "platforms": {
+      "windows": { "executableNames": ["wps.exe"] },
+      "macos": { "appNames": ["wpsoffice.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "capcut",
+    "name": "剪映",
+    "category": "Creative",
+    "platforms": {
+      "windows": { "executableNames": ["JianyingPro.exe"] },
+      "macos": { "appNames": ["剪映专业版.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "photoshop",
+    "name": "Adobe Photoshop",
+    "category": "Creative",
+    "platforms": {
+      "windows": { "executableNames": ["Photoshop.exe"] },
+      "macos": { "appNames": ["Adobe Photoshop.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "illustrator",
+    "name": "Adobe Illustrator",
+    "category": "Creative",
+    "platforms": {
+      "windows": { "executableNames": ["Illustrator.exe"] },
+      "macos": { "appNames": ["Adobe Illustrator.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "premiere-pro",
+    "name": "Adobe Premiere Pro",
+    "category": "Creative",
+    "platforms": {
+      "windows": { "executableNames": ["Adobe Premiere Pro.exe"] },
+      "macos": { "appNames": ["Adobe Premiere Pro.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "obs",
+    "name": "OBS Studio",
+    "category": "Creative",
+    "platforms": {
+      "windows": { "executableNames": ["obs64.exe", "obs32.exe"] },
+      "macos": { "bundleIds": ["com.obsproject.obs-studio"], "appNames": ["OBS.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "vscode",
+    "name": "Visual Studio Code",
+    "category": "Developer",
+    "platforms": {
+      "windows": { "executableNames": ["Code.exe"] },
+      "macos": { "bundleIds": ["com.microsoft.VSCode"], "appNames": ["Visual Studio Code.app"] }
+    },
+    "enabled": true
+  },
+  {
+    "id": "cursor",
+    "name": "Cursor",
+    "category": "Developer",
+    "platforms": {
+      "windows": { "executableNames": ["Cursor.exe"] },
+      "macos": { "bundleIds": ["com.todesktop.230313mzl4w4u92"], "appNames": ["Cursor.app"] }
+    },
+    "enabled": true
+  }
 ]

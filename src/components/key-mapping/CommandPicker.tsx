@@ -2,4 +2,114 @@ import { Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { CommandDefinition } from "@keyflow/contract";
 
-export function CommandPicker({ commands, existing, onClose, onAdd }: { commands: CommandDefinition[]; existing: string[]; onClose: () => void; onAdd: (ids: string[]) => void }) { const [search, setSearch] = useState(""); const [category, setCategory] = useState("全部"); const [selected, setSelected] = useState<string[]>([]); const categories = useMemo(() => ["全部", ...Array.from(new Set(commands.map((command) => command.category).filter((value): value is string => Boolean(value))))], [commands]); const shown = commands.filter((command) => command.enabled && !existing.includes(command.id) && command.name.includes(search) && (category === "全部" || command.category === category)); return <div className="fixed inset-0 z-20 flex items-center justify-center bg-slate-950/40"><div className="panel w-[620px] overflow-hidden"><header className="flex items-center justify-between border-b p-5"><div><h2 className="font-semibold">添加系统命令</h2><p className="text-xs text-slate-500">每个命令都会生成一个 COMMAND 动作。</p></div><button title="关闭" className="btn-secondary px-2" onClick={onClose}><X size={16}/></button></header><div className="grid grid-cols-[1fr_180px] gap-3 border-b p-4"><div className="relative"><Search className="absolute left-3 top-3 text-slate-400" size={16}/><input className="field pl-9" placeholder="搜索已启用的命令" value={search} onChange={(event) => setSearch(event.target.value)}/></div><select className="field" value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select></div><div className="grid max-h-80 grid-cols-2 gap-2 overflow-auto p-4">{shown.map((command) => <label key={command.id} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 ${selected.includes(command.id) ? "border-indigo-300 bg-indigo-50" : "border-slate-200"}`}><input type="checkbox" checked={selected.includes(command.id)} onChange={() => setSelected((ids) => ids.includes(command.id) ? ids.filter((id) => id !== command.id) : [...ids, command.id])}/><div><div className="text-sm font-medium">{command.name}</div><div className="text-xs text-slate-500">{command.id}</div></div></label>)}{!shown.length && <div className="col-span-2 py-10 text-center text-sm text-slate-500">没有可添加的命令。</div>}</div><footer className="flex justify-end gap-3 border-t bg-slate-50 p-4"><button className="btn-secondary" onClick={onClose}>取消</button><button disabled={!selected.length} className="btn-primary disabled:opacity-50" onClick={() => onAdd(selected)}>添加{selected.length ? ` ${selected.length} 个` : ""}命令</button></footer></div></div>; }
+export function CommandPicker({
+  commands,
+  existing,
+  onClose,
+  onAdd,
+}: {
+  commands: CommandDefinition[];
+  existing: string[];
+  onClose: () => void;
+  onAdd: (ids: string[]) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("全部");
+  const [selected, setSelected] = useState<string[]>([]);
+  const categories = useMemo(
+    () => [
+      "全部",
+      ...Array.from(
+        new Set(
+          commands
+            .map((command) => command.category)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ),
+    ],
+    [commands],
+  );
+  const shown = commands.filter(
+    (command) =>
+      command.enabled &&
+      !existing.includes(command.id) &&
+      command.name.includes(search) &&
+      (category === "全部" || command.category === category),
+  );
+  return (
+    <div className="fixed inset-0 z-20 flex items-center justify-center bg-slate-950/40">
+      <div className="panel w-[620px] overflow-hidden">
+        <header className="flex items-center justify-between border-b p-5">
+          <div>
+            <h2 className="font-semibold">添加系统命令</h2>
+            <p className="text-xs text-slate-500">每个命令都会生成一个 COMMAND 动作。</p>
+          </div>
+          <button title="关闭" className="btn-secondary px-2" onClick={onClose}>
+            <X size={16} />
+          </button>
+        </header>
+        <div className="grid grid-cols-[1fr_180px] gap-3 border-b p-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 text-slate-400" size={16} />
+            <input
+              className="field pl-9"
+              placeholder="搜索已启用的命令"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+          <select
+            className="field"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+          >
+            {categories.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </div>
+        <div className="grid max-h-80 grid-cols-2 gap-2 overflow-auto p-4">
+          {shown.map((command) => (
+            <label
+              key={command.id}
+              className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 ${selected.includes(command.id) ? "border-indigo-300 bg-indigo-50" : "border-slate-200"}`}
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(command.id)}
+                onChange={() =>
+                  setSelected((ids) =>
+                    ids.includes(command.id)
+                      ? ids.filter((id) => id !== command.id)
+                      : [...ids, command.id],
+                  )
+                }
+              />
+              <div>
+                <div className="text-sm font-medium">{command.name}</div>
+                <div className="text-xs text-slate-500">{command.id}</div>
+              </div>
+            </label>
+          ))}
+          {!shown.length && (
+            <div className="col-span-2 py-10 text-center text-sm text-slate-500">
+              没有可添加的命令。
+            </div>
+          )}
+        </div>
+        <footer className="flex justify-end gap-3 border-t bg-slate-50 p-4">
+          <button className="btn-secondary" onClick={onClose}>
+            取消
+          </button>
+          <button
+            disabled={!selected.length}
+            className="btn-primary disabled:opacity-50"
+            onClick={() => onAdd(selected)}
+          >
+            添加{selected.length ? ` ${selected.length} 个` : ""}命令
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}

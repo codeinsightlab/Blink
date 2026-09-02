@@ -11,7 +11,14 @@ pub fn show_main_window(app: &AppHandle) -> Result<(), String> {
 
 pub fn hide_on_close(window: &Window, event: &WindowEvent) {
     if let WindowEvent::CloseRequested { api, .. } = event {
-        if window.app_handle().state::<AppLifecycle>().0.load(Ordering::SeqCst) { return; }
+        if window
+            .app_handle()
+            .state::<AppLifecycle>()
+            .0
+            .load(Ordering::SeqCst)
+        {
+            return;
+        }
         api.prevent_close();
         let _ = window.hide();
     }

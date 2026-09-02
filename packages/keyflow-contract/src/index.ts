@@ -1,11 +1,25 @@
-export { KEY_CODES, KEY_SLOTS, PLATFORMS } from "./constants";
-export type { KeyCode, KeySlot, Platform } from "./constants";
-export type { Action, CommandAction, OpenAppAction } from "./action";
-export type { Execution, LaunchAppExecution, MacOSAppExecutionTarget, SendHotkeyExecution, WindowsAppExecutionTarget } from "./execution";
-export type { CommandDefinition } from "./command";
-export type { KeyBinding, Profile } from "./profile";
-export type { AppDefinition, MacOSAppDefinition, WindowsAppDefinition } from "./app";
-export { actionSchema, commandActionSchema, keyBindingSchema, openAppActionSchema, profileSchema } from "./schemas/profile.schema";
-export { appDefinitionSchema, macOSAppDefinitionSchema, windowsAppDefinitionSchema } from "./schemas/app.schema";
-export { executionSchema, keyCodeSchema, macOSLaunchAppExecutionSchema, sendHotkeyExecutionSchema, windowsLaunchAppExecutionSchema } from "./schemas/execution.schema";
-export { commandDefinitionSchema } from "./schemas/command.schema";
+export { KEY_CODES, PLATFORMS } from "./constants.ts";
+export type { KeyCode, Platform } from "./constants.ts";
+export type { Action, CommandAction, OpenAppAction } from "./action.ts";
+export type { Execution, LaunchAppExecution, SendHotkeyExecution } from "./execution.ts";
+export type { CommandDefinition } from "./command.ts";
+export type { Profile } from "./profile.ts";
+export type { AppDefinition, MacOSAppDefinition, WindowsAppDefinition } from "./app.ts";
+export {
+  actionSchema,
+  commandActionSchema,
+  openAppActionSchema,
+  profileSchema,
+} from "./schemas/profile.schema.ts";
+export {
+  appDefinitionSchema,
+  macOSAppDefinitionSchema,
+  windowsAppDefinitionSchema,
+} from "./schemas/app.schema.ts";
+export {
+  executionSchema,
+  keyCodeSchema,
+  launchAppExecutionSchema,
+  sendHotkeyExecutionSchema,
+} from "./schemas/execution.schema.ts";
+export { commandDefinitionSchema } from "./schemas/command.schema.ts";

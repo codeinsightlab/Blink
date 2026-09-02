@@ -1,16 +1,181 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { KEY_CODES, commandDefinitionSchema, type CommandDefinition, type KeyCode } from "@keyflow/contract";
+import {
+  KEY_CODES,
+  commandDefinitionSchema,
+  type CommandDefinition,
+  type KeyCode,
+} from "@keyflow/contract";
 
-const empty = (): CommandDefinition => ({ id: "", name: "", description: "", category: "", executions: {}, enabled: true });
-function HotkeyField({ label, keys, onChange }: { label: string; keys: KeyCode[]; onChange: (keys: KeyCode[]) => void }) {
+const empty = (): CommandDefinition => ({
+  id: "",
+  name: "",
+  description: "",
+  category: "",
+  executions: {},
+  enabled: true,
+});
+function HotkeyField({
+  label,
+  keys,
+  onChange,
+}: {
+  label: string;
+  keys: KeyCode[];
+  onChange: (keys: KeyCode[]) => void;
+}) {
   const [next, setNext] = useState<KeyCode>("CTRL");
-  return <div><span className="label">{label}</span><div className="flex min-h-10 flex-wrap gap-2 rounded-lg border border-slate-200 p-2">{keys.map((key) => <span key={key} className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700">{key}<button title="删除按键" onClick={() => onChange(keys.filter((item) => item !== key))}><Trash2 size={12}/></button></span>)}<select className="rounded border border-slate-200 px-1 text-xs" value={next} onChange={(event) => setNext(event.target.value as KeyCode)}>{KEY_CODES.filter((key) => !keys.includes(key)).map((key) => <option key={key}>{key}</option>)}</select><button type="button" className="btn-secondary py-1 text-xs" disabled={keys.includes(next)} onClick={() => onChange([...keys, next])}><Plus size={12}/>添加按键</button></div></div>;
+  return (
+    <div>
+      <span className="label">{label}</span>
+      <div className="flex min-h-10 flex-wrap gap-2 rounded-lg border border-slate-200 p-2">
+        {keys.map((key) => (
+          <span
+            key={key}
+            className="inline-flex items-center gap-1 rounded bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700"
+          >
+            {key}
+            <button title="删除按键" onClick={() => onChange(keys.filter((item) => item !== key))}>
+              <Trash2 size={12} />
+            </button>
+          </span>
+        ))}
+        <select
+          className="rounded border border-slate-200 px-1 text-xs"
+          value={next}
+          onChange={(event) => setNext(event.target.value as KeyCode)}
+        >
+          {KEY_CODES.filter((key) => !keys.includes(key)).map((key) => (
+            <option key={key}>{key}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn-secondary py-1 text-xs"
+          disabled={keys.includes(next)}
+          onClick={() => onChange([...keys, next])}
+        >
+          <Plus size={12} />
+          添加按键
+        </button>
+      </div>
+    </div>
+  );
 }
-export function CommandEditor({ selected, onSave, onDelete }: { selected: CommandDefinition | null; onSave: (command: CommandDefinition) => void; onDelete: (id: string) => void }) {
-  const [draft, setDraft] = useState<CommandDefinition>(selected ?? empty()); const [error, setError] = useState("");
-  useEffect(() => { setDraft(selected ?? empty()); setError(""); }, [selected]);
-  const setHotkey = (platform: "windows" | "macos", keys: KeyCode[]) => setDraft({ ...draft, executions: { ...draft.executions, [platform]: keys.length ? { type: "SEND_HOTKEY", keys } : undefined } });
-  const save = () => { const result = commandDefinitionSchema.safeParse({ ...draft, id: draft.id.trim().toUpperCase(), createdAt: draft.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString() }); if (!result.success) { setError(result.error.issues[0]?.message ?? "命令定义不合法"); return; } onSave(result.data); };
-  return <div className="panel p-6"><div className="mb-6 flex items-center justify-between"><div><h2 className="font-semibold">{selected ? "编辑命令" : "新增命令"}</h2><p className="text-xs text-slate-500">系统命令及跨平台快捷键定义</p></div><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}/>已启用</label></div><h3 className="mb-4 border-b pb-2 text-sm font-semibold">基本信息</h3><div className="grid grid-cols-2 gap-4"><label><span className="label">标识 ID</span><input disabled={Boolean(selected)} className="field disabled:bg-slate-50" value={draft.id} onChange={(event) => setDraft({ ...draft, id: event.target.value })}/></label><label><span className="label">名称</span><input className="field" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })}/></label><label><span className="label">分类</span><input className="field" value={draft.category ?? ""} onChange={(event) => setDraft({ ...draft, category: event.target.value })}/></label><label><span className="label">说明</span><input className="field" value={draft.description ?? ""} onChange={(event) => setDraft({ ...draft, description: event.target.value })}/></label></div><div className="mt-7 grid grid-cols-2 gap-6"><HotkeyField label="Windows 快捷键" keys={draft.executions.windows?.keys ?? []} onChange={(keys) => setHotkey("windows", keys)}/><HotkeyField label="macOS 快捷键" keys={draft.executions.macos?.keys ?? []} onChange={(keys) => setHotkey("macos", keys)}/></div>{error && <div className="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}<div className="mt-6 flex justify-between">{selected ? <button className="btn-danger" onClick={() => onDelete(selected.id)}><Trash2 size={15}/>删除</button> : <span/>}<button className="btn-primary" onClick={save}>保存命令</button></div></div>;
+export function CommandEditor({
+  selected,
+  onSave,
+  onDelete,
+}: {
+  selected: CommandDefinition | null;
+  onSave: (command: CommandDefinition) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [draft, setDraft] = useState<CommandDefinition>(selected ?? empty());
+  const [error, setError] = useState("");
+  useEffect(() => {
+    setDraft(selected ?? empty());
+    setError("");
+  }, [selected]);
+  const setHotkey = (platform: "windows" | "macos", keys: KeyCode[]) =>
+    setDraft({
+      ...draft,
+      executions: {
+        ...draft.executions,
+        [platform]: keys.length ? { type: "SEND_HOTKEY", keys } : undefined,
+      },
+    });
+  const save = () => {
+    const result = commandDefinitionSchema.safeParse({
+      ...draft,
+      id: draft.id.trim().toUpperCase(),
+      createdAt: draft.createdAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    if (!result.success) {
+      setError(result.error.issues[0]?.message ?? "命令定义不合法");
+      return;
+    }
+    onSave(result.data);
+  };
+  return (
+    <div className="panel p-6">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold">{selected ? "编辑命令" : "新增命令"}</h2>
+          <p className="text-xs text-slate-500">系统命令及跨平台快捷键定义</p>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={draft.enabled}
+            onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
+          />
+          已启用
+        </label>
+      </div>
+      <h3 className="mb-4 border-b pb-2 text-sm font-semibold">基本信息</h3>
+      <div className="grid grid-cols-2 gap-4">
+        <label>
+          <span className="label">标识 ID</span>
+          <input
+            disabled={Boolean(selected)}
+            className="field disabled:bg-slate-50"
+            value={draft.id}
+            onChange={(event) => setDraft({ ...draft, id: event.target.value })}
+          />
+        </label>
+        <label>
+          <span className="label">名称</span>
+          <input
+            className="field"
+            value={draft.name}
+            onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+          />
+        </label>
+        <label>
+          <span className="label">分类</span>
+          <input
+            className="field"
+            value={draft.category ?? ""}
+            onChange={(event) => setDraft({ ...draft, category: event.target.value })}
+          />
+        </label>
+        <label>
+          <span className="label">说明</span>
+          <input
+            className="field"
+            value={draft.description ?? ""}
+            onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+          />
+        </label>
+      </div>
+      <div className="mt-7 grid grid-cols-2 gap-6">
+        <HotkeyField
+          label="Windows 快捷键"
+          keys={draft.executions.windows?.keys ?? []}
+          onChange={(keys) => setHotkey("windows", keys)}
+        />
+        <HotkeyField
+          label="macOS 快捷键"
+          keys={draft.executions.macos?.keys ?? []}
+          onChange={(keys) => setHotkey("macos", keys)}
+        />
+      </div>
+      {error && <div className="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      <div className="mt-6 flex justify-between">
+        {selected ? (
+          <button className="btn-danger" onClick={() => onDelete(selected.id)}>
+            <Trash2 size={15} />
+            删除
+          </button>
+        ) : (
+          <span />
+        )}
+        <button className="btn-primary" onClick={save}>
+          保存命令
+        </button>
+      </div>
+    </div>
+  );
 }

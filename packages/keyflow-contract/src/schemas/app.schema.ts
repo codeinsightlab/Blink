@@ -15,7 +15,11 @@ export const macOSAppDefinitionSchema = z.object({
 });
 
 export const appDefinitionSchema = z.object({
-  id: z.string().trim().min(1).regex(/^[a-z0-9][a-z0-9-]*$/, "ID 仅支持小写字母、数字和连字符"),
+  id: z
+    .string()
+    .trim()
+    .min(1)
+    .regex(/^[a-z0-9][a-z0-9-]*$/, "ID 仅支持小写字母、数字和连字符"),
   name: z.string().trim().min(1, "名称不能为空"),
   category: optionalText,
   description: optionalText,

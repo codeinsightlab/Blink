@@ -1,18 +1,15 @@
-import type { LaunchAppExecution, MacOSAppExecutionTarget, SendHotkeyExecution, WindowsAppExecutionTarget } from "./execution";
+import type { LaunchAppExecution, SendHotkeyExecution } from "./execution.ts";
 
 export interface OpenAppAction {
   type: "OPEN_APP";
-  appId: string;
   executions: {
-    windows?: LaunchAppExecution<WindowsAppExecutionTarget>;
-    macos?: LaunchAppExecution<MacOSAppExecutionTarget>;
+    windows?: LaunchAppExecution;
+    macos?: LaunchAppExecution;
   };
 }
 
 export interface CommandAction {
   type: "COMMAND";
-  commandId: string;
-  name: string;
   executions: {
     windows?: SendHotkeyExecution;
     macos?: SendHotkeyExecution;

@@ -4,9 +4,107 @@ import { AppEditor } from "../components/app-registry/AppEditor";
 import { PageHeader } from "../components/PageHeader";
 import { useAppRegistryStore } from "../stores/appRegistryStore";
 
-export function AppRegistryPage(){
- const {apps,upsertApp,deleteApp,toggleApp}=useAppRegistryStore(); const [selectedId,setSelectedId]=useState<string|null>(apps[0]?.id??null); const [search,setSearch]=useState(""); const [category,setCategory]=useState("全部");
- const categories=useMemo(()=>["全部",...Array.from(new Set(apps.map(a=>a.category).filter((x):x is string=>Boolean(x)))).sort()], [apps]);
- const filtered=apps.filter(a=>a.name.toLowerCase().includes(search.toLowerCase())&&(category==="全部"||a.category===category)); const selected=apps.find(a=>a.id===selectedId)??null;
- return <><PageHeader title="软件库" description="定义软件及其在不同操作系统中的识别信息。" action={<button className="btn-primary" onClick={()=>setSelectedId(null)}><Plus size={16}/>新增软件</button>}/><div className="grid grid-cols-[360px_1fr] gap-6"><aside className="panel h-fit overflow-hidden"><div className="space-y-3 border-b p-4"><div className="relative"><Search size={16} className="absolute left-3 top-3 text-slate-400"/><input className="field pl-9" placeholder="搜索软件" value={search} onChange={e=>setSearch(e.target.value)}/></div><select className="field" value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c}>{c}</option>)}</select></div><div className="max-h-[680px] overflow-auto">{filtered.map(app=><button key={app.id} onClick={()=>setSelectedId(app.id)} className={`flex w-full items-center gap-3 border-b border-slate-100 p-4 text-left ${selectedId===app.id?"bg-indigo-50":"hover:bg-slate-50"}`}><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-sm font-semibold">{app.name.slice(0,1)}</div><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{app.name}</div><div className="text-xs text-slate-500">{app.category||"未分类"}</div></div><span title={app.enabled?"点击停用":"点击启用"} onClick={e=>{e.stopPropagation();toggleApp(app.id)}} className={`h-5 w-9 rounded-full p-0.5 ${app.enabled?"bg-indigo-600":"bg-slate-300"}`}><span className={`block h-4 w-4 rounded-full bg-white transition ${app.enabled?"translate-x-4":""}`}/></span></button>)}{!filtered.length&&<div className="p-8 text-center text-sm text-slate-500">没有找到软件。</div>}</div></aside><AppEditor selected={selected} onSave={app=>{upsertApp(app);setSelectedId(app.id)}} onDelete={id=>{if(window.confirm("确定删除该软件吗？已有配置方案中的引用将保留。")){deleteApp(id);setSelectedId(null)}}}/></div></>;
+export function AppRegistryPage() {
+  const { apps, upsertApp, deleteApp, toggleApp } = useAppRegistryStore();
+  const [selectedId, setSelectedId] = useState<string | null>(apps[0]?.id ?? null);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("全部");
+  const categories = useMemo(
+    () => [
+      "全部",
+      ...Array.from(
+        new Set(apps.map((a) => a.category).filter((x): x is string => Boolean(x))),
+      ).sort(),
+    ],
+    [apps],
+  );
+  const filtered = apps.filter(
+    (a) =>
+      a.name.toLowerCase().includes(search.toLowerCase()) &&
+      (category === "全部" || a.category === category),
+  );
+  const selected = apps.find((a) => a.id === selectedId) ?? null;
+  return (
+    <>
+      <PageHeader
+        title="软件库"
+        description="定义软件及其在不同操作系统中的识别信息。"
+        action={
+          <button className="btn-primary" onClick={() => setSelectedId(null)}>
+            <Plus size={16} />
+            新增软件
+          </button>
+        }
+      />
+      <div className="grid grid-cols-[360px_1fr] gap-6">
+        <aside className="panel h-fit overflow-hidden">
+          <div className="space-y-3 border-b p-4">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-3 text-slate-400" />
+              <input
+                className="field pl-9"
+                placeholder="搜索软件"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <select
+              className="field"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              {categories.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div className="max-h-[680px] overflow-auto">
+            {filtered.map((app) => (
+              <button
+                key={app.id}
+                onClick={() => setSelectedId(app.id)}
+                className={`flex w-full items-center gap-3 border-b border-slate-100 p-4 text-left ${selectedId === app.id ? "bg-indigo-50" : "hover:bg-slate-50"}`}
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-sm font-semibold">
+                  {app.name.slice(0, 1)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{app.name}</div>
+                  <div className="text-xs text-slate-500">{app.category || "未分类"}</div>
+                </div>
+                <span
+                  title={app.enabled ? "点击停用" : "点击启用"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleApp(app.id);
+                  }}
+                  className={`h-5 w-9 rounded-full p-0.5 ${app.enabled ? "bg-indigo-600" : "bg-slate-300"}`}
+                >
+                  <span
+                    className={`block h-4 w-4 rounded-full bg-white transition ${app.enabled ? "translate-x-4" : ""}`}
+                  />
+                </span>
+              </button>
+            ))}
+            {!filtered.length && (
+              <div className="p-8 text-center text-sm text-slate-500">没有找到软件。</div>
+            )}
+          </div>
+        </aside>
+        <AppEditor
+          selected={selected}
+          onSave={(app) => {
+            upsertApp(app);
+            setSelectedId(app.id);
+          }}
+          onDelete={(id) => {
+            if (window.confirm("确定删除该软件吗？已有配置方案中的引用将保留。")) {
+              deleteApp(id);
+              setSelectedId(null);
+            }
+          }}
+        />
+      </div>
+    </>
+  );
 }

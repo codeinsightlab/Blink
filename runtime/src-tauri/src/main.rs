@@ -159,34 +159,21 @@ fn dispatch_profile(app: &AppHandle, id: &str) {
     let executions = {
         let state = app.state::<SharedRuntime>();
         let core = state.lock().expect("runtime lock");
-        core.repository.find(id).and_then(|profile| {
-            profile
-                .source_profile
-                .bindings
-                .iter()
-                .find(|binding| binding.id == profile.source_binding_id)
-                .map(|binding| {
-                    binding
-                        .actions
-                        .iter()
-                        .map(|action| {
-                            action
-                                .executions
-                                .get(if cfg!(target_os = "windows") {
-                                    "windows"
-                                } else {
-                                    "macos"
-                                })
-                                .cloned()
-                                .ok_or_else(|| "UNSUPPORTED_PLATFORM".into())
-                        })
-                        .collect::<Vec<_>>()
-                })
-        })
+        core.repository
+            .find(id)
+            .map(|runtime_profile| runtime_profile.profile.executions_for(current_platform()))
     };
     if let Some(executions) = executions {
-        for execution in executions {
-            if let Err(error) = execution.and_then(|value| execution::dispatch(&value)) {
+        match executions {
+            Ok(executions) => {
+                for execution in executions {
+                    if let Err(error) = execution::dispatch(&execution) {
+                        publish_diagnostic(app, "已收到快捷键，但命令执行失败".into(), Some(error));
+                        return;
+                    }
+                }
+            }
+            Err(error) => {
                 publish_diagnostic(app, "已收到快捷键，但命令执行失败".into(), Some(error));
                 return;
             }
@@ -257,19 +244,13 @@ fn current_platform() -> &'static str {
 }
 fn action_hotkey(profile: &repository::RuntimeProfile) -> Option<Vec<String>> {
     profile
-        .source_profile
-        .bindings
+        .profile
+        .actions
         .iter()
-        .find(|binding| binding.id == profile.source_binding_id)
-        .and_then(|binding| {
-            binding
-                .actions
-                .iter()
-                .filter_map(|action| action.executions.get(current_platform()))
-                .find_map(|execution| match execution {
-                    profile::Execution::SendHotkey { keys } => Some(keys.clone()),
-                    _ => None,
-                })
+        .filter_map(|action| action.executions().get(current_platform()))
+        .find_map(|execution| match execution {
+            profile::Execution::SendHotkey { keys } => Some(keys.clone()),
+            _ => None,
         })
 }
 #[tauri::command]
@@ -282,8 +263,8 @@ fn runtime_snapshot(core: State<SharedRuntime>) -> RuntimeSnapshot {
             .iter()
             .map(|profile| RuntimeProfileView {
                 id: profile.id.clone(),
-                name: profile.name.clone(),
-                description: profile.description.clone(),
+                name: profile.display_name().into(),
+                description: profile.profile.description.clone(),
                 physical_input: core.bindings.profile_to_physical.get(&profile.id).cloned(),
                 action_hotkey: action_hotkey(profile),
                 icon_id: profile.icon_id.clone(),
@@ -340,24 +321,29 @@ fn cancel_binding_capture(app: AppHandle) -> Result<(), String> {
     }
     refresh_listener(&app)
 }
-fn import_profile(app: &AppHandle, profile: Profile) -> Result<(), String> {
+fn import_profiles(app: &AppHandle, profiles: Vec<Profile>) -> Result<(), String> {
     let state = app.state::<SharedRuntime>();
     let mut core = state.lock().expect("runtime lock");
-    core.repository.insert_import(profile);
+    for profile in profiles {
+        core.repository.insert_import(profile)?;
+    }
     core.repository.save(&core.repository_file)
 }
 #[tauri::command]
 fn load_profile(app: AppHandle, path: String) -> Result<(), String> {
-    import_profile(&app, Profile::from_file(&path).map_err(|e| e.to_string())?)
+    import_profiles(
+        &app,
+        Profile::many_from_file(&path).map_err(|e| e.to_string())?,
+    )
 }
 #[tauri::command]
 fn load_fixture_profile(app: AppHandle) -> Result<(), String> {
-    import_profile(
+    import_profiles(
         &app,
-        Profile::from_json(include_str!(
-            "../../../packages/keyflow-contract/fixtures/profile-v1.2.example.json"
+        vec![Profile::from_json(include_str!(
+            "../../../packages/keyflow-contract/fixtures/profile-v2.0.example.json"
         ))
-        .map_err(|e| e.to_string())?,
+        .map_err(|e| e.to_string())?],
     )
 }
 #[tauri::command]
@@ -459,7 +445,8 @@ fn main() {
             app.manage(AppLifecycle(AtomicBool::new(false)));
             let dir = app.path().app_data_dir()?;
             let repo_file = dir.join("profiles.json");
-            let mut repository = ProfileRepository::load(&repo_file);
+            let mut repository =
+                ProfileRepository::load(&repo_file).map_err(std::io::Error::other)?;
             let seeded = repository
                 .ensure_system_profiles()
                 .map_err(|error| std::io::Error::other(error))?;

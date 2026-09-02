@@ -15,11 +15,31 @@ type CommandRegistryState = {
   toggleCommand: (id: string) => void;
 };
 
-const persist = (commands: CommandDefinition[]) => { writeStorage(STORAGE_KEYS.commands, commands); return commands; };
+const persist = (commands: CommandDefinition[]) => {
+  writeStorage(STORAGE_KEYS.commands, commands);
+  return commands;
+};
 
 export const useCommandRegistryStore = create<CommandRegistryState>((set) => ({
   commands: loadCommands(),
-  upsertCommand: (command) => set((state) => ({ commands: persist(state.commands.some((item) => item.id === command.id) ? state.commands.map((item) => item.id === command.id ? command : item) : [...state.commands, command]) })),
-  deleteCommand: (id) => set((state) => ({ commands: persist(state.commands.filter((command) => command.id !== id)) })),
-  toggleCommand: (id) => set((state) => ({ commands: persist(state.commands.map((command) => command.id === id ? { ...command, enabled: !command.enabled, updatedAt: new Date().toISOString() } : command)) })),
+  upsertCommand: (command) =>
+    set((state) => ({
+      commands: persist(
+        state.commands.some((item) => item.id === command.id)
+          ? state.commands.map((item) => (item.id === command.id ? command : item))
+          : [...state.commands, command],
+      ),
+    })),
+  deleteCommand: (id) =>
+    set((state) => ({ commands: persist(state.commands.filter((command) => command.id !== id)) })),
+  toggleCommand: (id) =>
+    set((state) => ({
+      commands: persist(
+        state.commands.map((command) =>
+          command.id === id
+            ? { ...command, enabled: !command.enabled, updatedAt: new Date().toISOString() }
+            : command,
+        ),
+      ),
+    })),
 }));

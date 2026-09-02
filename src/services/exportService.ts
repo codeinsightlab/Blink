@@ -1,19 +1,44 @@
-import { profileSchema, type Profile } from "@keyflow/contract";
-import type { AppDefinition, CommandDefinition } from "@keyflow/contract";
-import { compileProfile, validateProfileBusiness } from "./profileCompiler";
+import type { AppDefinition, CommandDefinition, Profile } from "@keyflow/contract";
+import type { ProfileDraft } from "../models/authoring";
+import { compileProfileDrafts } from "./profileCompiler";
 
-export function validateProfile(profile: Profile) { return profileSchema.safeParse(profile); }
-export function prepareProfileExport(profile: Profile, apps: AppDefinition[], commands: CommandDefinition[]) {
-  const compiled = compileProfile(profile, apps, commands);
-  const schema = validateProfile(compiled);
-  const businessErrors = schema.success ? validateProfileBusiness(compiled, apps, commands) : schema.error.issues.map((issue) => `字段 ${issue.path.join(".")} 不符合要求`);
-  return { compiled, errors: businessErrors, success: schema.success && businessErrors.length === 0 };
+export function prepareProfileExport(
+  drafts: ProfileDraft[],
+  apps: AppDefinition[],
+  commands: CommandDefinition[],
+) {
+  try {
+    const compiled = compileProfileDrafts(
+      drafts.filter((draft) => draft.actions.length > 0),
+      apps,
+      commands,
+    );
+    if (!compiled.length)
+      return { compiled: [] as Profile[], errors: ["至少需要一个包含动作的能力"], success: false };
+    return { compiled, errors: [] as string[], success: true };
+  } catch (error) {
+    return {
+      compiled: [] as Profile[],
+      errors: [error instanceof Error ? error.message : "Profile 编译失败"],
+      success: false,
+    };
+  }
 }
-export function downloadProfile(profile: Profile, apps: AppDefinition[], commands: CommandDefinition[]) {
-  const result = prepareProfileExport(profile, apps, commands);
+
+export function downloadProfiles(
+  drafts: ProfileDraft[],
+  apps: AppDefinition[],
+  commands: CommandDefinition[],
+) {
+  const result = prepareProfileExport(drafts, apps, commands);
   if (!result.success) return result;
-  const url = URL.createObjectURL(new Blob([JSON.stringify(result.compiled, null, 2)], { type: "application/json" }));
-  const anchor = document.createElement("a"); anchor.href = url; anchor.download = "keyflow-profile.json"; anchor.click();
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(result.compiled, null, 2)], { type: "application/json" }),
+  );
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "keyflow-profiles.json";
+  anchor.click();
   URL.revokeObjectURL(url);
   return result;
 }

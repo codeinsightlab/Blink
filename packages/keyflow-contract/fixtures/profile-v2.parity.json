@@ -1,0 +1,1797 @@
+[
+  {
+    "id": "dual-command",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "mac-only-command",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "windows-only-open-app-missing-optionals",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "description-present",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "description": "Copy text"
+    }
+  },
+  {
+    "id": "multiple-actions",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        },
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "trim-normalization",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": " ﻿Open Chrome \t",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": [" ﻿chrome.exe \n"]
+            }
+          }
+        }
+      ],
+      "description": " ﻿Description \n"
+    }
+  },
+  {
+    "id": "optional-empty-locator",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "aliases": []
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "non-js-whitespace-name",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "mac-only-launch",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "macos": {
+              "type": "LAUNCH_APP",
+              "bundleIds": ["com.google.Chrome"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "name-invalid-0",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "name-invalid-1",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "   ",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "name-invalid-2",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": null,
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "name-invalid-3",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": 2,
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "name-invalid-4",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "﻿",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "name-invalid-5",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": " ",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "description-invalid-0",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "description": null
+    }
+  },
+  {
+    "id": "description-invalid-1",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "description": ""
+    }
+  },
+  {
+    "id": "description-invalid-2",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "description": "   "
+    }
+  },
+  {
+    "id": "description-invalid-3",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "description": 2
+    }
+  },
+  {
+    "id": "description-invalid-4",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "description": "﻿"
+    }
+  },
+  {
+    "id": "missing-version",
+    "valid": false,
+    "profile": {
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "missing-name",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "missing-actions",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy"
+    }
+  },
+  {
+    "id": "executableNames-empty-item",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": [""]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "executableNames-mixed-empty",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["Chrome", ""]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "executableNames-whitespace",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": [" ﻿ "]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "executableNames-null",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": null
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "executableNames-non-string",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": [1]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "executableNames-valid",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "executableNames": [" target "],
+              "type": "LAUNCH_APP"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "aliases-empty-item",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "aliases": [""]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "aliases-mixed-empty",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "aliases": ["Chrome", ""]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "aliases-whitespace",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "aliases": [" ﻿ "]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "aliases-null",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "aliases": null
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "aliases-non-string",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "aliases": [1]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "aliases-valid",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "aliases": [" target "],
+              "type": "LAUNCH_APP"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "bundleIds-empty-item",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "bundleIds": [""]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "bundleIds-mixed-empty",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "bundleIds": ["Chrome", ""]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "bundleIds-whitespace",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "bundleIds": [" ﻿ "]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "bundleIds-null",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "bundleIds": null
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "bundleIds-non-string",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "bundleIds": [1]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "bundleIds-valid",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "bundleIds": [" target "],
+              "type": "LAUNCH_APP"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "appNames-empty-item",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "appNames": [""]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "appNames-mixed-empty",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "appNames": ["Chrome", ""]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "appNames-whitespace",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "appNames": [" ﻿ "]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "appNames-null",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "appNames": null
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "appNames-non-string",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "appNames": [1]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "appNames-valid",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "appNames": [" target "],
+              "type": "LAUNCH_APP"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "knownPaths-empty-item",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "knownPaths": [""]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "knownPaths-mixed-empty",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "knownPaths": ["Chrome", ""]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "knownPaths-whitespace",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "knownPaths": [" ﻿ "]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "knownPaths-null",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "knownPaths": null
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "knownPaths-non-string",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "executableNames": ["chrome.exe"],
+              "knownPaths": [1]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "knownPaths-valid",
+    "valid": true,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "knownPaths": [" target "],
+              "type": "LAUNCH_APP"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "empty-keys",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": []
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "duplicate-keys",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "META"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "unknown-key",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["F13"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "null-keys",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": null
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "lowercase-key",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["c"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "missing-keys",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "empty-executions",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {}
+        }
+      ]
+    }
+  },
+  {
+    "id": "null-platform",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": null,
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "unknown-platform",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            },
+            "linux": {
+              "type": "SEND_HOTKEY",
+              "keys": ["C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "open-hotkey-mismatch",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "command-launch-mismatch",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "LAUNCH_APP",
+              "appNames": ["Chrome"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "bad-version",
+    "valid": false,
+    "profile": {
+      "version": "1.2",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "empty-actions",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": []
+    }
+  },
+  {
+    "id": "unknown-action-type",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "UNKNOWN",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "unknown-execution-type",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "UNKNOWN",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "unknown-action-field",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          },
+          "unexpected": true
+        }
+      ]
+    }
+  },
+  {
+    "id": "unknown-execution-field",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"],
+              "unexpected": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "profile-field-appId",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "appId": "legacy"
+    }
+  },
+  {
+    "id": "profile-field-commandId",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "commandId": "legacy"
+    }
+  },
+  {
+    "id": "profile-field-slot",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "slot": "legacy"
+    }
+  },
+  {
+    "id": "profile-field-bindings",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "bindings": "legacy"
+    }
+  },
+  {
+    "id": "profile-field-unexpected",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "unexpected": "legacy"
+    }
+  },
+  {
+    "id": "profile-field-id",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "id": "legacy"
+    }
+  },
+  {
+    "id": "profile-field-createdAt",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "createdAt": "legacy"
+    }
+  },
+  {
+    "id": "profile-field-updatedAt",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          }
+        }
+      ],
+      "updatedAt": "legacy"
+    }
+  },
+  {
+    "id": "action-field-appId",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          },
+          "appId": "legacy"
+        }
+      ]
+    }
+  },
+  {
+    "id": "action-field-commandId",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          },
+          "commandId": "legacy"
+        }
+      ]
+    }
+  },
+  {
+    "id": "action-field-slot",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          },
+          "slot": "legacy"
+        }
+      ]
+    }
+  },
+  {
+    "id": "action-field-name",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Copy",
+      "actions": [
+        {
+          "type": "COMMAND",
+          "executions": {
+            "windows": {
+              "type": "SEND_HOTKEY",
+              "keys": ["CTRL", "C"]
+            },
+            "macos": {
+              "type": "SEND_HOTKEY",
+              "keys": ["META", "C"]
+            }
+          },
+          "name": "legacy"
+        }
+      ]
+    }
+  },
+  {
+    "id": "no-locator",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "empty-locators",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Open Chrome",
+      "actions": [
+        {
+          "type": "OPEN_APP",
+          "executions": {
+            "windows": {
+              "type": "LAUNCH_APP",
+              "appNames": [],
+              "executableNames": []
+            }
+          }
+        }
+      ]
+    }
+  }
+]

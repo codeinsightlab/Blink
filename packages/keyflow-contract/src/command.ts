@@ -1,4 +1,4 @@
-import type { SendHotkeyExecution } from "./execution";
+import type { SendHotkeyExecution } from "./execution.ts";
 
 export interface CommandDefinition {
   id: string;

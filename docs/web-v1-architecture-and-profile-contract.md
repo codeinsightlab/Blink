@@ -755,3 +755,1868 @@ Deck 内容区顶部新增粘性分组导航，可一键定位“外部导入”
 “实体 C 绑定复制失败、实体 D/F10 绑定同一复制 Profile 可以成功”的最强解释是触发键与动作终止键的同键竞争：Tauri global shortcut 当前只在 `ShortcutState::Pressed` 时同步 dispatch，实体 C 仍被物理按下时，enigo 随即再投递 `Meta down → C down → C up → Meta up`。macOS 可能将第二个 C down 合并/忽略，或裸 C 已先影响目标应用的选区；D/F10 不与输出 `⌘C` 重叠，因而不存在这一竞争。此结论解释了差异性，不涉及 Profile 的 macOS 解析错误，也不能通过把 Profile 强制改成其他快捷键解决。
 
 最小产品保护应在绑定阶段检测“无修饰实体键”是否等于 `SEND_HOTKEY` 的非修饰终止键，并明确提示该组合不可靠，建议使用 F 键、Macro Pad 键或带修饰键的实体输入。若产品必须可靠支持此组合，则需要平台输入层能力：至少等待源键释放后再注入；若还要阻止裸 C 抵达前台应用，则 macOS 需使用可消费事件的原生 event tap，而不是只依赖 Tauri global shortcut。两者都属于 Input Backend/交互能力升级，不能偷换为 Runtime 对 Profile 业务规则的修正。
+
+# Phase 0 Architecture Audit
+
+> 审查日期：2026-09-02
+>
+> 审查范围：当前工作树中的 `packages/keyflow-contract`、根目录 Studio Web、`runtime` TypeScript GUI 与 Rust Core。
+>
+> 纪律：本节只记录当前代码事实与 Phase 1 文件级计划；未实现 Factory、Creator、Profile、Binding 或 UI 变更。
+
+## 1. Executive Conclusion
+
+1. 当前架构可以低成本进入 Phase 1：Profile v1.2 已能在一个 Action 内分别携带 `windows` / `macos` Execution，单平台配置在数据结构上成立，Runtime 也只读取当前平台项。
+2. Contract 目前是“JSON 语义部分共享”：Studio Web 直接依赖 `@keyflow/contract`；Rust Runtime 手写了可反序列化同一 JSON 的结构，并用共享 fixture 做兼容测试，但没有依赖或生成自同一类型模块。因此最终判断为 **部分共享**，不是“真正共享”。
+3. Runtime Rust `Action` 只保留 `executions`，导入 JSON 后会丢弃 `Action.type`、`appId`、`commandId`、`name` 等业务字段；Repository 再保存的是这份裁剪后的 `source_profile`。内置 fixture 还使用共享 Contract 不允许的 `KEY_7/KEY_8`，并省略 Action 判别与业务字段；它能加载仅因为 Rust 模型/校验更宽。这是另一套持久化业务模型的直接证据。
+4. 当前没有共享 `ProfileFactory`。Studio Web 在 `profileStore.ts`、`setupService.ts` 和 `profileCompiler.ts` 分散拼装默认 Profile、Binding、`OPEN_APP` 与 `COMMAND` Action；Runtime 只能导入文件，不能创建 Profile。
+5. Binding 闭环已经具备：`bind_key` 会校验物理键、更新双向 Map、注册最新全局快捷键、失败时恢复旧注册、保存 `bindings.json`，无需重启即可生效。
+6. Runtime Creator 真正缺失的是：共享 Factory、Runtime 的 Open App/Hotkey 收集 UI、把内存 Profile 交给 Repository 的 command/API，以及 GUI 依次调用“创建并持久化 → 绑定并注册”。无需先建新的 orchestration framework。
+7. `OPEN_APP` 执行器已支持 macOS 的 bundle id / app name / path 和 Windows 的 executable name / alias / path；Runtime 只有 Profile JSON 文件选择器，没有应用选择器。
+8. `SEND_HOTKEY` 的跨平台 Contract 与执行器已存在；Runtime 没有动作快捷键录入 UI。现有实体绑定的 `keydown` 捕获和 `physicalInput()` 只能复用交互思路，不能当作 Factory 或跨平台推断逻辑。
+9. 当前没有在导入/展示阶段显式区分“Profile 非法”和“当前平台未配置”：非法数据在 `Profile::from_json` 返回错误；缺少当前平台 Execution 直到按键触发才以 `UNSUPPORTED_PLATFORM` 进入最近错误，GUI 导入失败还会丢弃具体错误文本。
+10. Binding 是纯 Key-level。`physicalInput: String` 没有设备身份，因此主键盘 F13、Macro Pad A 的 F13、Macro Pad B 的 F13 无法区分；这是 Phase 1 已知边界，不应在本阶段扩张 Device Identity 或键盘底层架构。
+
+## 2. Current Architecture Map
+
+```text
+Studio Web
+  App Registry + Command Registry + current Profile
+      │ localStorage:
+      │ keyflow.appRegistry / keyflow.commandRegistry / keyflow.currentProfile
+      ↓
+  profileCompiler + Zod/business validation
+      ↓ download JSON
+
+Runtime import picker
+      ↓ load_profile(path)
+  Rust Profile::from_file / from_json
+      ↓ ProfileRepository::insert_import (每个 source binding 展开一个 RuntimeProfile)
+  app-data/profiles.json                         [Profile 持久化]
+
+Runtime binding capture (WebView keydown)
+      ↓ begin_binding_capture → bind_key(profileId, physicalKey)
+  BindingState::bind_profile
+      ↓ app-data/bindings.json                   [Binding 持久化]
+  register_state → tauri global-shortcut         [Runtime 注册]
+      ↓
+Physical Key / Shortcut
+      ↓ dispatch_physical_key
+physical_to_profile: physicalInput → RuntimeProfileId
+      ↓ repository.find + sourceBindingId
+ProfileBinding.actions (原顺序)
+      ↓ executions[currentPlatform]
+Execution::LaunchApp | Execution::SendHotkey
+      ↓ execution::dispatch
+macOS open / Windows cmd start | enigo
+```
+
+代码中的实际 Runtime 关联不是早期文档设想的 `physical key → slot → Profile`，而是：
+
+```text
+physicalInput → RuntimeProfile.id
+RuntimeProfile.sourceBindingId → sourceProfile.bindings[].id
+```
+
+`slot` 会被导入和持久化，但当前按键查找链不使用 `slot`。
+
+## 3. Reuse
+
+| 能力 | 文件 | 为什么可以直接复用 |
+| --- | --- | --- |
+| Profile/Action/Execution 的 TypeScript Contract | `packages/keyflow-contract/src/profile.ts`、`action.ts`、`execution.ts` | 已表达有序 Action 和可选的双平台实现；Phase 1 不需要新 Contract 模型。 |
+| Zod 结构校验 | `packages/keyflow-contract/src/schemas/*.ts` | 可供共享 Factory 输出后校验；现有 Profile v1.2 无需升级版本。 |
+| 当前平台 Execution 路由 | `runtime/src-tauri/src/main.rs` 的 `current_platform`、`dispatch_profile` | 忠实选择当前平台，不推断另一平台。 |
+| Primitive 执行器 | `runtime/src-tauri/src/execution.rs` | `LAUNCH_APP` 与 `SEND_HOTKEY` 均已分发并实现 macOS/Windows 路径。 |
+| Runtime Profile Repository | `runtime/src-tauri/src/repository.rs` | 已能 Insert、持久化、查询、重命名和删除 RuntimeProfile；需要的只是接受 Creator 内存 Profile 的入口与返回新 id。 |
+| Binding 双向 Map 与持久化 | `runtime/src-tauri/src/binding.rs` | 已实现一键一 Profile、last-wins、解绑、重建与 `bindings.json` 保存。 |
+| 即时全局注册与失败恢复 | `runtime/src-tauri/src/main.rs` 的 `commit_bindings`、`bind_key` | 新 Binding 成功后立即注册；注册失败恢复上一份注册，无需重启。 |
+| Runtime 实体键捕获交互 | `runtime/src/main.ts` 的 `physicalInput`、capture 状态与 `keydown` handler | 可复用“按下一次即收集”的 UI/事件处理思路；仍需把动作快捷键和实体绑定状态分开。 |
+| Tauri Dialog 插件 | `runtime/package.json`、`runtime/src-tauri/Cargo.toml`、`runtime/src/main.ts` | 插件已安装并初始化；当前只用于 JSON，Phase 1 可在同一能力边界增加系统应用文件选择。 |
+| Studio Registry 到 Action 的既有映射规则 | `src/services/profileCompiler.ts` | 是提取共享 Factory 时的现有业务规则证据；迁移后调用共享实现，不保留复制品。 |
+
+## 4. Modify
+
+| 模块 | 现状 | Phase 1 需要修改什么 | 为什么 |
+| --- | --- | --- | --- |
+| `@keyflow/contract` | 只有类型、Schema、常量 | 在现有 package 内加入最小 `ProfileFactory`，仅公开 `createOpenApp(...)`、`createHotkey(...)` | 这是 Web/Studio/Runtime 都能依赖的最自然现有 shared/profile 边界。 |
+| Studio Profile 创建调用点 | 默认 Profile、Binding、Action 分散拼装 | 改为调用共享 Factory；保留 store、localStorage、页面编排 | 消除标准 Profile 创建规则复制，不重做 Studio 状态架构。 |
+| Runtime frontend package | 未依赖 workspace Contract | 增加 `@keyflow/contract` workspace 依赖，Creator 直接调用同一 Factory | Runtime GUI 是 TypeScript，能以最小成本真正消费共享 Factory。 |
+| Runtime Repository command 边界 | 只接受文件导入，`load_profile` 不返回新 id | 增加接受 Factory 产物的内存/JSON Profile 创建入口，并返回创建的 RuntimeProfile id | GUI 必须知道刚创建哪一项，才能立即调用既有 `bind_key`。 |
+| Runtime GUI | 只有导入、管理、实体绑定 | 加 Key-centric Creator 流程：选实体键 → 选动作 → picker/capture → Factory → persist → `bind_key` | 满足连续体验，不暴露 Profile/Action/Binding 管理后台。 |
+| Runtime snapshot/error 展示 | 仅展示 hotkey/来源等视图字段，导入错误被前端概括 | 对“当前平台未配置”提供显式可展示状态；保留非法 Profile 的具体导入错误 | 产品必须区分 invalid 与 current platform missing。 |
+| Rust Contract 映射 | 手写结构且 `Action` 丢弃业务字段 | 最小补齐与 Profile v1.2 一致的 Action tagged enum，或至少保真保存 Action 字段并增加 parity tests | 当前 Repository 回写后不再是完整统一 Contract。不要新建 RuntimeProfile Contract。 |
+
+## 5. Add
+
+只需要以下最小新增能力：
+
+1. **Shared ProfileFactory**：放进现有 `packages/keyflow-contract`，只实现 `createOpenApp(...)` 与 `createHotkey(...)`，输出现有 Profile v1.2；不引入 Factory 版本、Migration Registry 或未来 Action。
+2. **Runtime Open App Creator UI**：调用系统 picker，向 Factory 传递用户明确选中的当前平台应用目标；不让用户手填路径，也不猜另一平台。
+3. **Runtime Hotkey Creator UI**：捕获用户明确按下的动作快捷键，生成当前平台 `SEND_HOTKEY.keys`；不根据 Copy/Paste/Save 名称推断。
+4. **Creator Profile persist command/API**：接受 Factory 生成的 Profile，复用 `ProfileRepository::insert_import/save`，返回唯一新 RuntimeProfile id。它不是第二套 Profile 模型。
+5. **GUI 级 Create+Bind 组合**：创建成功后立刻调用现有 `bind_key`。Phase 1 先组合已有能力；只有真实失败一致性要求证明需要时，才考虑后端事务命令。
+
+## 6. Do Not Touch
+
+- `runtime/src-tauri/src/execution.rs` 的 Input Backend 架构：不做 interception、event suppression、synthetic event 重构或 modifier state engine。
+- `tauri-plugin-global-shortcut` 的监听生命周期与完整主键盘 remap：Phase 1 继续以 F13–F24、Macro Pad、外接键盘等可注册输入为主要边界；注意当前 Action `KeyCode` 只含 F1–F12，这与实体触发字符串是两个模型。
+- Device Identity：不把 `physicalInput` 扩成 Device + Key。
+- Blink 架构：不新增 Builder、Workflow、Condition、Loop、Variable、State Machine 或 Agent。
+- Profile Version/Migration：保留当前已有 `version: "1.2"` 兼容事实，但不新增 `schemaVersion`、Factory 版本或升级流水线。
+- Cloud Sync / Marketplace：不增加云端持久化、账号或同步。
+- App/Command Registry 的管理后台：Creator 可以复用其规则，不需要把 Runtime 变成 Registry 管理器。
+- `RuntimeProfile` 的本地展示字段（source/icon/createdAt）：除接受新 Profile 所必需的调用边界外，不做 Repository 重构。
+
+## 7. Profile Contract Audit
+
+### A. Profile Contract
+
+1. **Profile 核心类型**：`packages/keyflow-contract/src/profile.ts`；`Profile = { version, id, name, bindings, createdAt, updatedAt }`，`KeyBinding = { id, slot, name, description?, actions }`。
+2. **Action 定义**：`packages/keyflow-contract/src/action.ts`；`Action = OpenAppAction | CommandAction`，由 `type: "OPEN_APP" | "COMMAND"` 区分。
+3. **Platform/OS 表达**：`packages/keyflow-contract/src/constants.ts` 定义字符串联合 `"windows" | "macos"`；实际实现嵌套在每个 Action 的 `executions.windows?` / `executions.macos?`。
+4. **多个 OS implementation**：支持，同一 Action 可同时包含两项。
+5. **只有一个 OS implementation**：类型与 Zod Schema 都允许；Studio 导出业务校验只要求至少一个平台，因此这是合法导出。
+6. **合法性验证**：共享 Zod 在 `packages/keyflow-contract/src/schemas/profile.schema.ts` 及 execution/app/command schemas；Studio 导出额外业务校验在 `src/services/profileCompiler.ts::validateProfileBusiness`；Rust 导入验证在 `runtime/src-tauri/src/profile.rs::Profile::from_json`。三者强度并不一致。
+7. **Runtime 当前平台选择**：`runtime/src-tauri/src/main.rs::current_platform` 和 `dispatch_profile` 读取 `action.executions[currentPlatform]`；Windows 取 `windows`，其他构建实际都落入 `macos`，虽然正式目标只有 Windows/macOS。
+8. **非法 vs 当前平台未配置**：底层错误来源有区分，但产品状态没有完整区分。非法 Profile 在导入时返回 `INVALID_JSON` / `UNSUPPORTED_PROFILE_VERSION` / `INVALID_PROFILE` / `UNKNOWN_EXECUTION`；当前平台缺项在执行时返回 `UNSUPPORTED_PLATFORM`。GUI 导入 catch 统一显示“无法导入此 Profile”，且未配置状态不在导入/卡片阶段显式呈现。
+
+关键文件与核心类型：
+
+| 文件 | 核心类型/职责 |
+| --- | --- |
+| `packages/keyflow-contract/src/profile.ts` | `Profile`、`KeyBinding` |
+| `packages/keyflow-contract/src/action.ts` | `OpenAppAction`、`CommandAction`、`Action` |
+| `packages/keyflow-contract/src/execution.ts` | `LaunchAppExecution`、`SendHotkeyExecution`、`Execution` |
+| `packages/keyflow-contract/src/constants.ts` | `Platform`、`KeySlot`、`KeyCode` |
+| `packages/keyflow-contract/src/schemas/profile.schema.ts` | Profile/Binding/Action Zod Schema |
+| `runtime/src-tauri/src/profile.rs` | Rust `Profile`、`ProfileBinding`、缩窄后的 `Action`、`Execution` |
+
+### B. Web / Runtime / Studio 是否真正共享 Contract
+
+- **Web/Studio**：当前仓库根 React 应用就是 Studio Web，没有另一套 Studio 业务应用。它直接从 workspace package `@keyflow/contract` 导入 `Profile`、Action、Schema 与常量。
+- **Runtime TypeScript GUI**：只使用 `runtime/src/types.ts` 的 `RuntimeProfile` / `RuntimeSnapshot` 视图 DTO，不依赖 `@keyflow/contract`，也不直接持有完整 Profile。
+- **Runtime Rust Core**：使用 `runtime/src-tauri/src/profile.rs` 的手写 Rust struct/enum；它与 TypeScript package 不属于同一个 package/crate/module，只通过共享 JSON fixture 测试部分兼容。
+- **复制/映射事实**：Rust `Profile` / `ProfileBinding` 是 Contract 的手写 DTO；Rust `Action { executions }` 比统一 Contract 更窄。导入时 serde 忽略未知字段，随后 `ProfileRepository::insert` 将每个 source binding 展开为本地 `RuntimeProfile`，并把裁剪后的 `source_profile` 整体复制进每个 RuntimeProfile。
+- **当前内置数据反证**：`runtime/src-tauri/fixtures/builtin-profile.json` 的 `builtin-save` / `builtin-find` 使用 `KEY_7` / `KEY_8`，而共享 `KEY_SLOTS` 只有 `KEY_1`–`KEY_6`；所有内置 Action 只有 `executions`，不符合共享 `Action` discriminated union。它不是可通过 `profileSchema` 的 Profile v1.2。
+- **判断**：**部分共享**。JSON shape 的执行核心兼容并有 fixture 测试，但只有 Studio Web 真正依赖共享 package；Runtime 既有手写 DTO，又有 JSON → `RuntimeProfile` 的二次持久化映射。
+
+### C. 当前 Profile 创建逻辑
+
+| 入口 | 文件 | 当前创建方式 | 是否重复业务规则 | 建议 Reuse/Modify |
+| --- | --- | --- | --- | --- |
+| Studio 默认 Profile | `src/stores/profileStore.ts::defaultProfile` | 对象字面量拼顶层 Profile | 是，标准 id/version/time 规则在端内 | Modify：改用共享 Factory 或其基础创建能力 |
+| Studio 新增逻辑 Binding | `src/services/setupService.ts::createSetupBinding` | 手拼 `KeyBinding` 后写入当前 Profile | 是，id/name/slot/time 属于标准创建规则 | Modify：共享 Factory 创建标准单 Binding Profile/片段，页面只收集输入 |
+| Studio OPEN_APP | `src/services/profileCompiler.ts::createOpenAppAction` | 从 `AppDefinition.platforms` 展开 `LAUNCH_APP` | 是；这是当前唯一明确规则源但位于 Web service | Move/Reuse：规则进入共享 Factory，原调用点改为委托 |
+| Studio Hotkey/COMMAND | `src/services/profileCompiler.ts::createCommandAction` | 复制 Command id/name/executions | 是 | Move/Reuse：规则进入共享 Factory，Command Registry 仍只负责输入来源 |
+| Studio setup 保存 | `src/services/setupService.ts::saveShortcuts/saveOpenApp(s)` | 调上面 helper，再拼 Profile 并原子式写两个 localStorage key | 编排可保留，创建规则重复 | Modify：保留 commit/rollback，改调共享 Factory |
+| Studio export compile | `src/services/profileCompiler.ts::compileProfile` | 再从 Registry 重建 Action execution | 与创建 helper 共用同文件规则 | Modify：调用共享 Factory；保留过滤空 Binding 与业务校验 |
+| Runtime import | `runtime/src-tauri/src/main.rs::load_profile/import_profile` | 文件反序列化为 Rust Profile，Repository 按 binding 展开 RuntimeProfile | 不是标准创建；是导入/本地映射 | Reuse：Creator 复用 Repository insert/save，但增加内存输入与返回 id |
+| Runtime 内置 Profile | `runtime/src-tauri/src/repository.rs::ensure_system_profiles` + fixture | 从固定 JSON 反序列化后插入 | fixture 是手工 Profile 创建物 | Reuse unchanged：Phase 1 不改系统内置数据 |
+
+当前不存在命名为 Factory/Builder 的共享实现。`profileCompiler.ts` 有 Action helper，但只属于 Studio Web，且没有创建完整 Profile。
+
+### D. Shared ProfileFactory 应该放在哪里
+
+**推荐位置**：`packages/keyflow-contract/src/profileFactory.ts`，并由 `packages/keyflow-contract/src/index.ts` 导出。若希望文件名小写与当前风格一致，可用 `profile-factory.ts`；不要新造 package。
+
+**依赖方向**：
+
+```text
+packages/keyflow-contract
+  Profile types + schemas + ProfileFactory
+             ↑                 ↑
+      Studio Web          Runtime TypeScript GUI
+                               ↓ JSON/serde command
+                         Runtime Rust Repository/Executor
+```
+
+**原因**：现有 package 已是 Profile Contract 的 TypeScript 唯一事实源，Factory 只依赖同包类型/Schema；Studio 与 Runtime GUI 都能直接依赖 workspace package。把 Factory 放进 `RuntimeUtils` 或 Web service 会制造复制或反向依赖。
+
+需要修改的现有创建入口：`src/stores/profileStore.ts::defaultProfile`、`src/services/profileCompiler.ts::createOpenAppAction/createCommandAction/compileProfile`、`src/services/setupService.ts::createSetupBinding/saveShortcuts/saveOpenApp/saveOpenApps`。Runtime 新 Creator 只能调用该共享 Factory，不能再写一份 Rust/TS Factory。
+
+## 8. Binding Audit
+
+### E. 当前 Binding 模型
+
+1. **类型**：`runtime/src-tauri/src/binding.rs::PersistedBinding { runtime_profile_id, physical_input }`；内存态为 `BindingState`，同时维护 persisted vector 与两个反向 HashMap。
+2. **关联 Profile**：绑定关联的是本地 `RuntimeProfile.id`，不是 source Profile id，也不是 `slot`。
+3. **key 表达**：`physical_input: String`，例如 `F11`、`CTRL+SHIFT+F9`；注册前把字符串中的 `META` 替换为插件使用的 `SUPER` 再解析 `Shortcut`。
+4. **保存位置**：Tauri `app_data_dir()/bindings.json`；Profile Repository 另存为同目录 `profiles.json`。
+5. **加载**：启动时先加载/补齐 Repository，再以有效 RuntimeProfile ids 调 `BindingState::load`；`rebuild` 清孤儿、重建双向 Map，并 last-wins 收敛冲突。
+6. **启动恢复**：清理后的 BindingState 立即回写 `bindings.json`，随后 `refresh_listener` 调 `register_state` 注册全部物理键。
+7. **新增注册**：GUI capture 后调用 `bind_key`；后端克隆 state、`bind_profile`、`commit_bindings`。非暂停态先注册 next，成功才替换内存并保存。
+8. **修改/删除**：重新 bind 自动释放该 Profile 的旧 key，也会释放新 key 原来关联的其他 Profile；`unbind_profile` 更新并重新注册/保存；删除 Profile 前先 unbind。
+9. **是否重启**：不需要。`commit_bindings` 成功即为当前进程注册最新状态。
+
+真实链路：
+
+```text
+GUI 捕获 physicalInput
+→ bind_key(profileId, physicalKey)
+→ BindingState::bind_profile
+→ register_state(next)                         注册/验证
+→ core.bindings = next
+→ bindings.json                               持久化
+→ global-shortcut Pressed
+→ dispatch_physical_key
+→ physical_to_profile → RuntimeProfile
+→ sourceBindingId → ProfileBinding
+→ actions[] → executions[currentPlatform]
+→ execution::dispatch
+```
+
+### F. 创建后立即 Binding
+
+未来 GUI 已有 `physicalKey + Profile` 后，最小链路应为：
+
+```text
+shared ProfileFactory 生成并校验 Profile
+→ 新增的 Runtime create-profile command 接收内存 Profile
+→ ProfileRepository::insert_import + profiles.json
+→ command 返回新 RuntimeProfile.id
+→ 既有 bind_key(id, physicalKey)
+→ commit_bindings 注册 + bindings.json
+→ 立即 active
+```
+
+已经存在：Rust Profile 反序列化/验证、Repository insert/save、`bind_key`、Binding save、全局注册、失败时恢复旧注册、snapshot reload。只需组合：Creator 成功后用返回 id 调 `bind_key`，最后 reload snapshot。真正缺失：共享 Factory、Runtime Creator UI、非文件 Profile 创建 command 及其返回 id。
+
+注意当前 `insert_import` 可能返回多个 RuntimeProfile；最小 Creator 应生成恰好一个 Binding 的 Profile，并由 command 明确拒绝空/多 Binding 或明确返回 ids 后由 GUI绑定目标，不能猜第一个。Phase 1 的唯一目标适合“一次 Creator 创建一个单 Binding Profile”。
+
+## 9. OPEN_APP Audit
+
+1. **Action schema**：`{ type: "OPEN_APP", appId, executions: { windows?: LAUNCH_APP, macos?: LAUNCH_APP } }`。
+2. **目标保存**：Windows execution 包含必填 `executableNames[]`，可选 `knownPaths[]/aliases[]`；macOS 可含 `bundleIds[]/appNames[]/knownPaths[]`。它们直接随 Profile JSON 持久化。
+3. **Runtime 执行**：`dispatch_profile` 选当前平台；`execution::dispatch` 进入 `launch_app`。
+4. **接受形式**：macOS 依次接受 bundle id、app name（通常可为 `.app` 名称）、known path；Windows 接受 executable name、alias、known path。没有单独的通用 `path` 字段，也没有 Runtime App Registry 查询。
+5. **picker 现状**：Runtime 已装 Dialog 插件，但代码中唯一 `open()` 是选择 Profile JSON；没有应用/可执行文件 picker。Studio Web 的 `AppPicker` 只是浏览器内 App Registry 列表，不是系统 picker。
+6. **Factory 输入**：系统 picker 应把“用户明确选择的当前平台应用目标”交给 Factory。最小数据包括当前 `platform`、显示名/稳定 id 生成所需的用户输入或本地标识，以及 picker 返回的实际 path；Factory 只为当前平台写 execution。Windows 现有 Schema 还要求 `executableNames` 非空，因此应从用户选择结果提供可执行文件名与 path；macOS 可直接提供 `.app` path，并可选提供由系统元数据明确读取的 bundle id。不得从产品名称猜路径或另一平台实现。
+
+目标 UI 仍是：
+
+```text
+选择“打开应用” → 系统 Picker → 用户选择应用 → Shared ProfileFactory
+```
+
+不暴露底层路径文本框。
+
+## 10. SEND_HOTKEY Audit
+
+1. **schema**：业务 Action 为 `{ type: "COMMAND", commandId, name, executions }`；平台 execution 为 `{ type: "SEND_HOTKEY", keys: KeyCode[] }`。
+2. **modifier**：和普通键统一放在有序 `keys` 数组，modifier code 为 `CTRL`、`META`、`ALT`、`SHIFT`。
+3. **key**：共享 `KeyCode` 字符串联合，包含字母、数字、常用特殊键、方向键与 F1–F12；Schema 要求至少一个且不重复。
+4. **macOS/Windows Contract**：同一个 `SendHotkeyExecution` 类型，通过 `executions.macos?` / `.windows?` 分平台携带；数值不必相同。
+5. **Runtime 执行**：当前平台 execution 交给 enigo；按数组顺序 Press，再逆序 Release。Rust `to_key` 不读取 `commandId` 或名称。
+6. **Runtime 录入 UI**：没有动作快捷键 Creator/capture。已有 capture 是为实体 Binding；Studio 当前 ShortcutPicker 只从 Command Registry 选择，也不捕获新快捷键。
+7. **可复用代码**：Runtime `physicalInput()` 与 capture gate 可复用键盘事件归一化思路，Contract `KEY_CODES`/Schema 可校验输出，`hotkeyFormatter.ts`/Keycap 可复用展示。动作快捷键 capture 必须是独立 UI 状态，不能调用 `bind_key`，也不能把 `META`/`CTRL` 自动跨平台转换。
+
+Runtime 必须执行 Profile 明确写入的 keys。`Copy`、`Paste`、`Save` 等名称只用于展示，不能成为快捷键推断依据。
+
+## 11. Platform Audit
+
+1. **platform 形式**：共享常量层是 string union；Profile 中是每个 Action 的可选嵌套 implementation，而非顶层单值 enum。
+2. **双平台差异**：同一 Action 的 `executions.windows` / `executions.macos` 各自携带完整 Primitive。
+3. **检测位置**：Rust `main.rs::current_platform()` 使用编译期 `cfg!(target_os)`；`execution.rs` 的 launch 实现使用 `#[cfg(target_os)]`。
+4. **缺少当前平台**：Profile 仍能导入、显示和绑定；按键触发时 `dispatch_profile` 生成 `UNSUPPORTED_PLATFORM`，记录“命令执行失败”并停止该 Binding 后续 Action。卡片未统一显示这种状态；只有系统 hotkey Tile 在 `actionHotkey` 为空时显示“当前平台无快捷键”，OPEN_APP 外部项没有对应状态。
+5. **部分平台配置**：共享结构与 Studio 导出业务校验满足“至少一个平台即可合法”。Rust 导入甚至允许 Action 的 `executions` 为空，因此 Rust 合法性比 Studio 导出边界更宽；最小差距是统一导入校验规则，并把“合法但当前平台未配置”从执行错误提升为明确状态。
+
+不需要 Migration。当前 `version` 字段是既有 Contract 事实，本阶段不扩张版本体系。
+
+## 12. Physical Key Identity Audit
+
+结论：**当前是 Key-level Binding**。
+
+证据：`PersistedBinding` 只有 `runtimeProfileId` 与 `physicalInput`；两个索引都是 `HashMap<String, String>`，key 是可解析成 global shortcut 的字符串。浏览器 `KeyboardEvent` 捕获也只生成 modifier + key，没有 vendor/product/device/path/serial 信息。
+
+因此以下输入在当前 Runtime 中都归一为同一个 `F13`：
+
+```text
+主键盘 F13
+Macro Pad A 的 F13
+Macro Pad B 的 F13
+```
+
+Runtime 无法区分设备来源，且同一 `physicalInput` 只能关联一个 RuntimeProfile，后绑定者覆盖旧关联。Phase 1 记录这一边界即可，不升级 Device Identity。
+
+## 13. Minimal Phase 1 Change Set
+
+以下是计划，不是已实施代码。
+
+### CREATE
+
+| 文件 | 用途 |
+| --- | --- |
+| `packages/keyflow-contract/src/profileFactory.ts` | 唯一共享 Factory；仅 `createOpenApp(...)`、`createHotkey(...)`，输出并校验当前 Profile v1.2。 |
+| `runtime/src/creator.ts`（或与现有无框架结构一致的单个模块） | Runtime Key-centric Creator 的临时 UI state 与 create → persist → bind 调用组合；不创建领域模型。 |
+
+如 `runtime/src/main.ts` 继续保持当前单文件规模且新增模块反而割裂状态，可不创建 `creator.ts`，直接最小修改 `main.ts`；不为结构整洁强制拆分。
+
+### MODIFY
+
+| 文件 | 用途 |
+| --- | --- |
+| `packages/keyflow-contract/src/index.ts` | 导出共享 Factory 与其最小输入类型。 |
+| `src/services/profileCompiler.ts` | 删除/委托端内 Action 创建规则，改用共享 Factory；保留 export compile 与业务校验职责。 |
+| `src/stores/profileStore.ts` | 默认 Profile/标准创建调用改用共享 Factory，不改 Zustand/localStorage 架构。 |
+| `src/services/setupService.ts` | 保存编排继续存在，但标准 Profile/Action 构造交给共享 Factory。 |
+| `runtime/package.json`、`runtime/package-lock.json` | 增加 workspace `@keyflow/contract` 依赖。 |
+| `runtime/src/main.ts` | 新增选实体键、选择 Open App/Hotkey、系统 picker/capture、Factory 调用、persist 后立即 `bind_key`、明确错误反馈。 |
+| `runtime/src/types.ts` | 只补 Creator/snapshot 所需视图状态，例如 current-platform-not-configured；不复制 Profile Contract。 |
+| `runtime/src-tauri/src/main.rs` | 暴露接受内存 Profile 的最小创建 command，返回新 id；复用 `bind_key`，并在 snapshot 中区分当前平台未配置。 |
+| `runtime/src-tauri/src/repository.rs` | 让单 Binding Creator 插入返回明确 id；沿用 `profiles.json`。 |
+| `runtime/src-tauri/src/profile.rs` | 补齐统一 Action 的保真 Rust 映射与 parity validation；不新增 RuntimeProfile Contract 或版本系统。 |
+| `runtime/src-tauri/fixtures/builtin-profile.json` | 补齐统一 Action 字段，并把 `KEY_7/KEY_8` 收敛到合法 Slot 表达；Runtime 当前按 binding id 查找，修正 slot 不改变实体绑定关联。 |
+| `runtime/src/style.css` | 仅为 Creator 连续流程增加必要样式。 |
+| `runtime/src-tauri/capabilities/default.json` | 仅当应用 picker 所需 dialog 权限不能被现有 `dialog:default` 覆盖时最小补权；先验证再改。 |
+
+### REUSE UNCHANGED
+
+| 文件 | 用途 |
+| --- | --- |
+| `packages/keyflow-contract/src/profile.ts`、`action.ts`、`execution.ts`、现有 schemas | 继续作为唯一 Contract；不加新 Profile 类型。 |
+| `runtime/src-tauri/src/binding.rs` | Binding model、持久化和 last-wins 规则。 |
+| `runtime/src-tauri/src/execution.rs` | OPEN_APP / SEND_HOTKEY Primitive 执行。 |
+| `runtime/src/hotkeyFormatter.ts`、`runtime/src/keycap.ts` | Creator 快捷键展示。 |
+| `src/components/key-setup/ShortcutPicker.tsx`、`src/components/key-mapping/AppPicker.tsx` | Studio 继续使用；Runtime 不复制其 Registry 管理语义。 |
+
+### DO NOT TOUCH
+
+| 范围 | 原因 |
+| --- | --- |
+| global-shortcut / keyboard interception 架构 | 不扩张完整 remap、suppression 或 synthetic event。 |
+| Device Identity / HID | 当前产品边界是 Key-level。 |
+| Blink / Workflow / Agent | 不属于最小 Creator 闭环。 |
+| Profile version/migration | 当前无真实 Contract 升级需求。 |
+| Cloud/Marketplace/Sync | 不属于本地即时闭环。 |
+
+## 14. Open Questions
+
+代码审查后没有必须先问用户才能开始 Phase 1 的产品问题。以下两项是实现时必须用目标系统验证的技术门槛，但不阻塞文件级方案：
+
+1. macOS 的 Tauri open dialog 对 `.app` bundle 的返回行为，以及 Windows 对 `.exe` 的筛选/路径返回，需要分别在真实系统验证；当前代码只证明 Dialog 插件存在并能选 JSON。
+2. Windows Creator 与 `LAUNCH_APP` 的真实机闭环尚无当前运行证据；代码路径使用 `cmd /C start`，静态与单元测试通过不能替代真实应用启动。
+
+## Phase 0 Verification Receipt
+
+- 根 Studio：`npm run typecheck` 通过。
+- Runtime GUI：`npm run typecheck` 通过。
+- Runtime Rust：`cargo test` 通过，5/5。
+- 上述仅证明当前工作树静态类型与已有单元测试通过；未启动 Runtime、未操作系统 picker、未创建/绑定新 Profile，也未提供 macOS/Windows 实机 Creator 证据。
+
+# Profile Contract Simplification Audit
+
+> 审查日期：2026-09-02
+>
+> 范围：当前 TypeScript shared contract、Zod Schema、Studio Web、Runtime Rust DTO/Repository、fixtures、import/export。
+>
+> 本节只判断目标模型，不设计兼容迁移，不修改任何代码。
+
+## 1. Executive Conclusion
+
+1. 当前 Contract **明显携带上一阶段架构遗留**：`slot`、`KEY_1`–`KEY_6`、`KeyBinding` 命名和 `Profile → bindings[]` 层级都来自“逻辑键盘槽位”模型，而当前 Runtime 已是 `physicalInput → RuntimeProfileId`。
+2. `KeyBinding.slot` 的明确结论是 **REMOVE**。它在 Studio 中只是本地列表 key/编号/排序工具；Runtime 不用它导入、覆盖、绑定、查找或执行。数组顺序与本地 UI identity 可以替代其全部当前职责。
+3. `KEY_SLOTS` / `KeySlot` 的明确结论也是 **REMOVE**。它们没有跨 Web/Runtime 的领域语义，还人为把 Studio 限制为六项；Runtime 内置 fixture 已出现 `KEY_7/KEY_8`，证明 Runtime 运行模型并不服从该 Contract 限制。
+4. Profile 中的 `KeyBinding` 已不是真正 Binding。真正 Binding 是 Runtime 的 `{ runtimeProfileId, physicalInput }`；前者实际是一个独立可命名、可描述、可按序执行 Actions 的 **ProfileEntry/可执行命令**。继续叫 Binding 会与 Runtime Binding 产生概念冲突。
+5. 当前代码实际是：Studio 把 `Profile` 当“一组可导出的命令集合”，Runtime import 却把每个 `bindings[]` 元素展开为独立 `RuntimeProfile` 并逐个绑定。因此设计定义与运行粒度不一致。
+6. `bindings[]` 多一层没有不可替代的当前价值。最小目标应让一个共享 `Profile` 就代表一个可独立导入、显示、绑定和执行的用户能力，直接拥有 `name/description/actions`；批量导出只是传输层批量，不应迫使领域对象保留伪 Binding。
+7. 编译后的共享 Profile 不需要 `appId`、`commandId` 或 `CommandAction.name`。它们当前只服务 Studio Registry 选择、显示、查重和重新编译，应 **MOVE 到 Web-only authoring state**；Runtime 只需要平台 Execution。
+8. `Action → executions[platform] → Execution` 仍有真实价值：Action 保留动作顺序和一组平台替代实现，Execution 表达最终 Primitive。但 Action 顶层 `OPEN_APP/COMMAND` type 可由平台 Execution type 推导，当前 Runtime 也不读取，建议 **DERIVE/REMOVE from wire**。
+9. `Profile.id`、`KeyBinding.id`、`sourceBindingId` 当前形成无效身份链：Import=Insert 从不按 source id 覆盖；真正本地实例身份是 `RuntimeProfile.id`。目标共享 Profile 不需要这两个 source id，`sourceBindingId` 随 `bindings[]` 删除。
+10. RuntimeProfile 存在明显副本：`name/description` 从 source binding 复制，整份 `sourceProfile` 又为每个展开项重复保存。保留本地可改名 override、icon、source 和 RuntimeProfile.id；description 应从单个 source Profile 推导，createdAt 当前无人读取，应删除。
+
+## 2. Current Actual Model
+
+```text
+Studio localStorage
+  keyflow.currentProfile
+  Profile.id = "default"                         [未用于导入身份]
+  Profile.bindings[]
+    KeyBinding.id                                [Studio React key / Runtime source lookup]
+    KeyBinding.slot                              [Studio 编号、选择、排序]
+    name / description / actions[]
+      appId / commandId                          [Studio Registry 引用]
+      executions.windows? / macos?               [实际跨端执行数据]
+          ↓
+Studio compile + export one JSON Profile
+          ↓
+Runtime Profile::from_json
+  丢弃 Action.type/appId/commandId/name
+          ↓
+ProfileRepository::insert_import
+  对每个 source_profile.bindings[i]：append 一个 RuntimeProfile
+    RuntimeProfile.id                            [本地实例身份]
+    name / description                           [source binding 的副本]
+    sourceProfile                                [整包副本，每项重复]
+    sourceBindingId                              [回指包内 entry]
+          ↓
+BindingState
+  runtimeProfileId + physicalInput               [真正实体键 Binding]
+          ↓
+sourceBindingId 查找 actions[]
+          ↓
+executions[currentPlatform] → Execution.type → Executor
+```
+
+当前身份链：
+
+```text
+Profile.id                      不参与 Runtime Insert/覆盖/执行
+KeyBinding.id                   仅用于 sourceBindingId 回查
+RuntimeProfile.id               真正本地实例 identity
+PersistedBinding.runtimeProfileId
+physicalInput
+```
+
+## 3. Slot Audit
+
+### 逐项事实
+
+1. **Web 创建为什么需要 slot**：`createSetupBinding` 用它寻找 `KEY_1`–`KEY_6` 中未使用的最小编号、生成默认名称/id，并限制最多六项。这是 Studio 当前 UI 规则，不是执行需求。
+2. **Web 展示是否真正依赖 slot**：页面用 `slot` 查找当前 entry、作为 React key、显示数字、排序和生成“按键 N”。这些都可由 entry 本地 id、数组 index/order 和显示名替代。
+3. **导出是否需要 slot**：`compileProfile` 原样保留；业务校验只把它写进错误位置字符串。没有任何执行编译以 slot 为输入。
+4. **Runtime 导入是否使用 slot**：Rust 校验只检查非空并保存；Repository 对 `bindings` 逐项 enumerate，不按 slot 去重、排序、覆盖或定位。
+5. **Runtime 执行是否使用 slot**：不使用。`dispatch_profile` 按 `sourceBindingId == binding.id` 查找。
+6. **Runtime Binding 是否使用 slot**：不使用。Binding 是 `runtimeProfileId ↔ physicalInput`。
+7. **Runtime Repository 是否使用 slot**：不使用。稳定系统 id 来自 `binding.id`，外部 id 来自时间/index/长度。
+8. **builtin 是否需要 slot**：不需要。`KEY_7/KEY_8` 能加载且正常展开，正说明 Rust 只要求非空字符串；这些值不影响系统项 id、展示、绑定或执行。
+9. **删除后的能力损失**：没有跨端产品能力损失。Studio 需把 selection/update key 换成本地 entry id，并用 array order/index 展示；Runtime 无执行改动。
+10. **顺序是否可由 array order 取代**：可以。Profile 当前已经用数组表达 entries 顺序，Action 也用数组顺序执行；另加 `KEY_N` 是重复顺序编码，并可能与数组位置不一致。
+
+### 明确判断
+
+```text
+KeyBinding.slot: REMOVE
+KEY_SLOTS: REMOVE
+KeySlot: REMOVE
+slot Zod Schema: REMOVE
+```
+
+`slot` 不应 MOVE 到 Runtime local state，因为 Runtime 已有更真实的 `physicalInput` Binding；如果 Studio 仍想显示序号，那只是由 array index 派生的 Web UI state。
+
+### 代码证据
+
+- 定义/约束：`packages/keyflow-contract/src/constants.ts`、`profile.ts`、`schemas/profile.schema.ts`。
+- Studio 本地用途：`src/services/setupService.ts`、`src/stores/profileStore.ts`、`src/pages/KeySetupPage.tsx`、`KeyMappingPage.tsx`、`OverviewPage.tsx`。
+- Runtime 不使用：`runtime/src-tauri/src/repository.rs` 只 enumerate；`main.rs::dispatch_profile` 按 `source_binding_id` 找 `binding.id`；`binding.rs` 只持有 RuntimeProfile id 与 physical input。
+- 反例：`runtime/src-tauri/fixtures/builtin-profile.json` 使用 `KEY_7/KEY_8`，超出 shared `KEY_SLOTS`，仍可通过 Rust loader。
+
+## 4. Profile Granularity Audit
+
+### Studio 实际粒度
+
+Studio 当前只有一个 `keyflow.currentProfile`，名称默认“我的 KeyFlow”；用户在其中新增多个 `bindings[]`，每项有独立名称、描述和 actions。导出也是一次导出整个集合。因此 Studio 当前把 Profile 当作 **模型 A：一整套配置/命令集合**。
+
+### Runtime 实际粒度
+
+Runtime 并不把导入的顶层 Profile 当成一个可绑定对象。`ProfileRepository::insert` 对每个 binding 建一个 RuntimeProfile；GUI 每个 RuntimeProfile 单独显示、改名、选图标、删除和实体绑定。因此 Runtime 的实际可操作单位是 **模型 B：一个用户命令/能力**。
+
+### Import 粒度
+
+源 JSON 同时还是 **模型 C：可包含多个独立命令的导入包**。但代码把同一个类型 `Profile` 同时用于“Studio 当前集合”“传输包”和“单个 Runtime 命令来源”，导致名字和身份层次相互覆盖。
+
+### 判断
+
+运行模型已经选择了“一个 RuntimeProfile = 一个可独立绑定能力”。共享领域 `Profile` 最小应与这个单位对齐，即 **一个 Profile 代表一个用户命令/能力**。Studio 的多项编辑和批量下载是本地集合/传输行为，不足以证明共享 Profile 本身必须是集合。
+
+## 5. `bindings[]` Layer Audit
+
+这层最初承担“一个 Profile 内多个逻辑键槽”的结构；当前仍承载四个事实：entry identity、显示 metadata、Action 顺序、Studio 集合。但它们都不要求叫 Binding 或要求 slot：
+
+- identity 可由 Web 本地编辑 state 管理；Runtime import 后重新分配本地 id。
+- name/description 应属于独立 Profile。
+- actions[] 本来就可直接属于独立 Profile。
+- Studio 多项集合可由数组保存，批量导出可由传输层数组表达。
+
+Runtime import 立即把每个 binding 展开为 RuntimeProfile，证明该层不是不可分割的 Profile 内部组成，而是实际的独立领域对象。
+
+明确结论：
+
+```text
+bindings[] layer: REMOVE
+KeyBinding type: REMOVE / fold into Profile
+KeyBinding name: rename is worth including in this Contract cleanup
+```
+
+概念上它最接近 `ProfileEntry`，但目标模型无需先 rename 为另一个中间类型；直接把它提升为 `Profile` 更少。
+
+## 6. Field Reduction Table
+
+| 字段 | 当前用途 | 谁读取 | 参与执行 | 参与身份 | 只是 UI | 历史遗留 | 建议 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `Profile.version` | TS literal 与 Rust v1.2 gate；Web 历史迁移写回 | Schema、Web loader、Rust loader | 否 | 否 | 否 | 是；当前明确不建设版本体系 | **REMOVE** |
+| `Profile.id` | Web 固定 `default`；Rust 保存但不查找 | Schema/loader | 否 | 实际否 | 否 | 是 | **REMOVE**；Web 草稿若需 identity，MOVE 到 Web-only |
+| `Profile.name` | Studio 集合/导出包名称 | Web 页面、Rust 保存；Runtime GUI不用此值 | 否 | 否 | 是 | 当前层级语义已失配 | **REMOVE current package meaning**；目标 Profile.name 来自 entry name |
+| `Profile.createdAt` | Web 创建时间；fixture 字段 | Web 更新/Schema、Rust保存 | 否 | 否 | 管理 metadata | 是 | **MOVE** 到 Web-only；共享 wire 删除 |
+| `Profile.updatedAt` | 每次 Studio 修改更新时间 | Web store/Schema、Rust保存 | 否 | 否 | 管理 metadata | 是 | **MOVE** 到 Web-only；共享 wire 删除 |
+| `KeyBinding.id` | React key；Runtime 生成 system id/source 回查 | Web、Repository、dispatch | 间接，仅因嵌套回查 | 包内 entry identity | 否 | 是 | **REMOVE**；RuntimeProfile.id 已承担本地 identity |
+| `KeyBinding.slot` | Web 查找、编号、排序、六项限制 | Web；Rust只校验/保存 | 否 | 否 | 是 | 是 | **REMOVE**，编号由 array index 派生 |
+| `KeyBinding.name` | 实际独立命令显示名 | Web、Repository复制、Runtime GUI | 否 | 否 | 用户可见领域 metadata | 否 | **MOVE** 为目标 `Profile.name` |
+| `KeyBinding.description` | 独立命令说明 | Web、Repository复制、Runtime GUI | 否 | 否 | 用户可见 metadata | 否 | **MOVE** 为目标 `Profile.description?` |
+| `KeyBinding.actions` | 有序动作链 | Web、Runtime dispatch | 是 | 否 | 否 | 否 | **MOVE/KEEP** 为目标 `Profile.actions` |
+| `OpenAppAction.type` | TS discriminant/Schema/UI | Web；Rust丢弃 | Runtime 否 | 否 | 部分 | 可由 Execution.type 推导 | **DERIVE**，wire 中删除 |
+| `OpenAppAction.appId` | Registry lookup、显示、去重、重新编译 | Studio only；Rust丢弃 | 否 | Registry ref | 否 | 对编译后 Profile 是 authoring metadata | **MOVE** 到 Web-only |
+| `OpenAppAction.executions` | 每平台最终启动描述 | Web compile、Runtime | 是 | 否 | 否 | 否 | **KEEP** |
+| `CommandAction.type` | TS discriminant/Schema/UI | Web；Rust丢弃 | Runtime 否 | 否 | 部分 | 可由 Execution.type 推导 | **DERIVE**，wire 中删除 |
+| `CommandAction.commandId` | Registry lookup、显示、去重、清理 | Studio only；Rust丢弃 | 否 | Registry ref | 否 | 对编译后 Profile 是 authoring metadata | **MOVE** 到 Web-only |
+| `CommandAction.name` | Studio Action 展示/默认 Profile 命名 | Studio only；Rust丢弃 | 否 | 否 | 是 | 与 Profile/entry name 重复 | **MOVE** 到 Web-only或 **DERIVE** 自 Registry |
+| `CommandAction.executions` | 每平台最终快捷键 | Web compile、Runtime | 是 | 否 | 否 | 否 | **KEEP** |
+| `Execution.type` | Primitive dispatcher discriminant | Web Schema、Rust dispatch | 是 | 否 | 否 | 否 | **KEEP** |
+| `SendHotkeyExecution.keys` | 要按下/释放的真实键序列 | Runtime executor | 是 | 否 | 也用于展示 | 否 | **KEEP** |
+| `LAUNCH_APP.executableNames` | Windows 启动候选 | Windows executor | 是 | 否 | 否 | 否 | **KEEP** |
+| `LAUNCH_APP.aliases` | Windows alias 候选 | Windows executor | 是 | 否 | 否 | 否 | **KEEP** |
+| `LAUNCH_APP.bundleIds` | macOS bundle 定位 | macOS executor | 是 | 否 | 否 | 否 | **KEEP** |
+| `LAUNCH_APP.appNames` | macOS app name 定位 | macOS executor | 是 | 否 | 否 | 否 | **KEEP** |
+| `LAUNCH_APP.knownPaths` | 当前平台显式路径 fallback | 两平台 executor | 是 | 否 | 否 | 否 | **KEEP** |
+
+补充约束减法：
+
+- 删除 `KEY_1`–`KEY_6` enum、slot 非空/enum 校验及“最多六项”领域约束。
+- 保留 `actions` 数组顺序和 `keys` 非空/不重复约束。
+- 保留每个 Action 至少一个平台 implementation；“当前平台未配置”仍是合法 Profile 的运行状态。
+- 统一 Action 内不同平台应保持同一种 Execution primitive；这样 Action.type 才能安全派生。当前两个 TS Action schema 已隐含该约束。
+
+## 7. Identity Model
+
+### 当前 ID 用途
+
+| ID | 真实用途 | 分类 | 目标判断 |
+| --- | --- | --- | --- |
+| `Profile.id` | 仅校验/保存；Import 不按它覆盖或去重 | 无关键逻辑 | **REMOVE** from shared |
+| `KeyBinding.id` | 包内回查与 system Runtime id 种子 | 嵌套结构派生 identity | **REMOVE** with bindings layer |
+| `RuntimeProfile.id` | GUI command target、Repository find/delete/rename、Binding foreign key | 真正客户端本地实例 identity | **KEEP local** |
+| `sourceBindingId` | 从重复保存的 source Profile 中找回展开 entry | bindings[] 造成的 adapter key | **REMOVE** with flattening |
+| `appId` | App Registry 引用 | Web authoring/Registry identity | **MOVE Web-only** |
+| `commandId` | Command Registry 引用、SETUP 清理 | Web authoring/Registry identity | **MOVE Web-only** |
+
+### 最小身份关系
+
+```text
+Web authoring item localId ── references ── appId / commandId
+             │ compile
+             ↓
+Shared Profile (no required shared id)
+             │ Runtime Import = Insert
+             ↓
+RuntimeProfile.id ── referenced by ── PersistedBinding.runtimeProfileId
+                                           + physicalInput
+```
+
+当前没有真正需要跨系统稳定 Profile identity 的行为：没有按 id 更新、同步、去重、Marketplace identity 或 round-trip merge。重复导入明确生成新 RuntimeProfile，所以不能用未来假设保留 Profile.id。
+
+## 8. Shared vs Local State
+
+### Shared Profile Contract
+
+只保留跨 Studio 编译结果、Runtime 与未来分发真正需要的内容：
+
+```text
+Profile
+  name
+  description?
+  actions[]
+    executions
+      windows?
+      macos?
+        Execution.type
+        Execution payload
+```
+
+`name/description` 虽不参与系统执行，但它们是用户创建能力的跨端展示语义，Runtime 当前真实显示，因此保留。
+
+### Runtime Local State
+
+```text
+RuntimeProfile.id
+localNameOverride?          // 只有用户改名后才需持久化
+iconId?
+source: SYSTEM | EXTERNAL
+Profile                    // 单个共享 Profile，不再是多-entry source package
+
+PersistedBinding
+  runtimeProfileId
+  physicalInput
+
+Repository Vec order       // 当前显示顺序，无需新增 order 字段
+```
+
+当前 `RuntimeProfile.name` 是真实本地 override，但初始化时复制 source name。目标可改为可选 `localNameOverride` 并由 `override ?? profile.name` 派生展示。`description` 没有本地编辑入口，应从 Profile 推导。`createdAt` 无读取者，应删除。`source`、`iconId`、实体 Binding 都属于 Runtime local，不进入 shared Profile。
+
+### Web-only State
+
+```text
+current draft/list identity
+array selection/index/order
+createdAt / updatedAt
+appId / commandId Registry references
+Registry item name/category/enabled
+editing/search/form/save state
+legacy localStorage handling（如果产品另行决定保留）
+```
+
+这些字段可用于 Studio 编辑与重新编译，但不应进入最终共享执行 Profile。
+
+## 9. Proposed Minimal Target POJO
+
+概念目标，不是本轮代码：
+
+```text
+Profile {
+  name
+  description?
+  actions[]
+}
+
+Action {
+  executions {
+    windows?: Execution
+    macos?: Execution
+  }
+}
+
+Execution =
+  LAUNCH_APP { platform locator fields }
+  | SEND_HOTKEY { keys[] }
+```
+
+一个 Profile 就是一个可独立导入、展示、绑定和执行的用户能力。多个 Profile 的 Studio 列表或一次批量下载只是集合/传输表示；本轮不为它命名新的 `ProfilePackage` Domain 类型。
+
+删除/下沉内容：
+
+- 删除 `version/id/createdAt/updatedAt`：当前共享运行语义不需要；时间移到 Web 管理状态。
+- 删除 `bindings[]/KeyBinding/id/slot/KEY_SLOTS`：独立 entry 提升为 Profile；数组顺序替代 slot 顺序。
+- 删除 wire Action 顶层 `type`：由 Execution primitive 派生。
+- 移出 `appId/commandId/CommandAction.name`：只留在 Web authoring/Registry state。
+- 保留 Action 层：它仍表达“一个有序动作及其平台替代实现”，不是空壳。
+- 保留 Execution type/payload：它是 Runtime 唯一执行依据。
+
+### RuntimeProfile Reduction Detail
+
+当前字段逐项：
+
+| RuntimeProfile 字段 | 为什么存在 | 来源/是否副本 | 是否可推导 | 是否需持久化 | 目标 |
+| --- | --- | --- | --- | --- | --- |
+| `id` | 本地实例 command 与 Binding foreign key | 本地生成 | 否 | 是 | **KEEP** |
+| `name` | GUI 展示、支持本地改名 | 初始复制 source binding；之后可分叉 | 默认值可推导，override 不可 | 仅 override 需 | **DERIVE + KEEP optional override** |
+| `description` | GUI 副标题 | source binding 副本 | 是 | 否 | **REMOVE cache / DERIVE** |
+| `iconId` | 用户本地图标选择 | 本地 | 否 | 是 | **KEEP local** |
+| `source` | 系统项删除保护与 UI 分组 | 本地 import source | 否 | 是 | **KEEP local** |
+| `sourceProfile` | 保存执行 payload | 整个导入包被每个 entry 重复复制 | flatten 后变成单 Profile | 是 | **KEEP one flattened Profile** |
+| `sourceBindingId` | 在 sourceProfile.bindings 中找 entry | adapter identity | flatten 后不需要 | 否 | **REMOVE** |
+| `createdAt` | 插入时间 | 本地生成；当前无读取 | 不需要 | 否 | **REMOVE** |
+
+`RuntimeProfile.name + source binding.name` 的重复目前有一个真实理由：本地 rename 不修改原始 source Profile。但不需要始终复制；用 `localNameOverride?: string` 即可表达差异。`description` 没有本地编辑，因此纯属 convenience cache。
+
+### Import Semantics Confirmation
+
+当前代码明确符合：
+
+```text
+Import = Insert
+```
+
+证据：
+
+- `insert_import` 总是调用 `insert(..., stable_ids=false)`。
+- 外部 RuntimeProfile id 由时间、binding index 和当前 repository 长度组成。
+- 没有按 `Profile.id` 查找或覆盖。
+- 没有 slot 冲突检测、按 slot 覆盖或固定位置替换。
+- 同一 fixture 连续导入的单元测试明确断言生成两组不同 ids、Repository 数量累加。
+- 实体键冲突只在之后的 BindingState 处理，last binding wins；与 source slot 无关。
+
+因此 `slot` 与当前 Import 语义完全无关。三个导出能力 Open IDEA / Copy / Paste 无需预声明 KEY_1/2/3；Runtime 只需要 append 三个本地实例，再由用户分别绑定 physical input。
+
+### Platform and Action/Execution Reduction Detail
+
+1. `executions.windows? / macos?` **KEEP**：当前产品明确允许单平台配置，Runtime 必须在一个动作中选择当前 OS implementation。
+2. Action/Execution 分层 **KEEP，但缩窄 Action**：Action 保留有序动作边界和跨平台 alternatives；Execution 保留具体 primitive 与 payload。
+3. 重复字段：`OpenAppAction.type` 与所有 implementation 的 `Execution.type=LAUNCH_APP` 重复；`CommandAction.type` 与 `SEND_HOTKEY` 重复。顶层 type 可派生。
+4. `OPEN_APP appId + executions`：Studio 草稿阶段同时需要，编译后的共享 Profile 不需要 appId。
+5. `COMMAND commandId + name + executions`：Studio Registry/展示阶段需要，Runtime Profile 不需要 id/name；Profile 自身已有用户可见 name。
+6. Runtime 不读取 Registry ids，不是偶然缺实现：它已经只按 Execution dispatch。当前真实 round-trip 也不存在，因为 Rust serde 会丢弃这些字段并持久化裁剪结果。
+7. 因此 Registry id 属于 Web 编译阶段 metadata，不应进入最终 shared Runtime Contract。
+
+## 10. Impact Map
+
+| 范围 | 收敛到目标 POJO 的影响 |
+| --- | --- |
+| Web/Studio | 当前单一集合需变为本地 Profile 列表；selection/update 从 slot 改为 Web local id/index；名称/说明/actions 从 binding 提升到 Profile；Registry refs 留在 authoring state。 |
+| Contract | 删除 `KeySlot/KEY_SLOTS/KeyBinding`、顶层 metadata 和 Registry ids；Profile 直接持有 actions；Action wire 只持有平台 executions。 |
+| Zod | 删除 slot enum、Profile version/time/id 和 Action Registry 字段校验；保留名称、actions、平台 implementation、Execution payload 约束。 |
+| Runtime Rust | `Profile` 直接含 name/description/actions；删除 `ProfileBinding`、sourceBindingId 与按 binding 查找；Rust DTO 与 shared wire 对齐。 |
+| Repository | 一次 Profile insert 生成一个 RuntimeProfile；不再复制整个多-binding source Profile N 次；本地 name 改为 optional override，description 派生，createdAt 删除。 |
+| builtin fixture | 八个 binding entry 变为八个独立最小 Profile 数据项/加载输入；删除虚假 slot 和缺失 shared Action shape 的偏差。具体文件批量封装属于 transport，不新增 Domain 模型。 |
+| localStorage | 现有 `keyflow.currentProfile` shape 会受影响；这是历史数据影响记录，不构成本轮保留旧字段的理由，也不在本轮设计 migration。 |
+| export | 从“一个 Profile 包含多个 bindings”变为导出一个或多个独立 Profile；array order 可表达批量顺序。 |
+| import | 从“一包展开 N 个 RuntimeProfile”变为“每个 Profile Insert 一个 RuntimeProfile”；重复导入仍 append，不按共享 id 覆盖。 |
+
+## 11. Safe Cleanup Order
+
+下一轮若获准清理，推荐顺序严格遵循减法：
+
+1. **先删除纯历史字段**：确认目标后移除 shared `slot/KEY_SLOTS`、顶层时间、无用途 Profile.id；Studio 用 local id/index 维持编辑。
+2. **再收平粒度**：把 entry 的 name/description/actions 提升到 Profile，删除 `KeyBinding/bindings[]`；先让 Studio export 与 shared Schema 一致。
+3. **再移出 authoring metadata**：把 appId/commandId/CommandAction.name 留在 Web-only Registry/draft，shared Action 只输出 platform executions。
+4. **再统一 Runtime adapter**：Rust Profile 与 shared wire 对齐；一次 Profile Insert 一个 RuntimeProfile；删除 sourceBindingId、description cache、createdAt，name 改为 local override。
+5. **再修 fixtures/import-export tests**：builtin 和 example fixture 只使用目标 POJO，验证重复 import=append、当前平台选择和 Action 顺序。
+6. **最后才考虑 Factory**：Factory 只能基于已经收敛的最小 Contract 创建 Open App/Hotkey Profile，不能先固化旧层级。
+
+不先设计 compatibility registry、version upgrader 或并行 V2 类型。历史 localStorage/JSON 的处理应在目标模型获批后另行决定。
+
+## 12. Do Not Add
+
+本次审查不建议新增：
+
+- 新版本系统或 `schemaVersion`
+- Migration framework / compatibility registry
+- Device Identity / HID 模型
+- Workflow、Condition、Loop、Variable、Agent
+- 新 App/Command Registry
+- 新 Domain Layer
+- `WebProfile / RuntimeProfileContract / StudioProfile` 等并行共享 Profile 类型体系
+- 为批量下载而提前建立 `ProfilePackage` 领域模型
+
+目标是让现有领域模型显露出来：共享 Profile 是一个可独立执行与绑定的能力；实体键、实例身份、来源、图标、改名和本地顺序属于 Runtime；Registry 引用与编辑时间属于 Web。
+
+## Simplification Audit Receipt
+
+- 本轮只使用 `rg` 与逐文件只读核对当前引用，没有修改 Contract、Rust、Studio、fixture、localStorage 或 Runtime 数据。
+- 仅向既有架构文档追加本审查章节，保留上一轮结论与时间线。
+- 未运行构建或测试：本轮没有代码变化，结论是静态代码事实审查，不宣称任何迁移或新目标 POJO已验证。
+
+# Three-Layer Model Simplification Audit
+
+> 审查日期：2026-09-02
+>
+> 本节以 `Web Authoring → Profile Transfer Protocol → Runtime Internal` 三层职责重新审查当前代码，只输出目标边界，不修改代码、Schema 或数据。
+>
+> 本节是三层职责明确后的最终结论；如与上一节“Profile Contract Simplification Audit”冲突，以本节为准。主要修正是：`Action.type` 应保留，`version` 应作为协议判别器保留。
+
+## 1. Executive Conclusion
+
+1. 三层不应共用一个 POJO。当前主要问题不是类型数量少，而是 Web authoring 字段、传输协议字段和 Runtime 本地字段混装在同一个 Profile shape 中。
+2. Web 当前 `Profile.bindings[]` 实际是 authoring entries；`slot/KEY_SLOTS` 只服务旧逻辑键 UI，应完全退出 Web 最小持久模型和传输协议。entry 的稳定编辑 identity 应是 Web-only `localId`，顺序由数组表达。
+3. Web authoring 中 `appId/commandId` 有真实职责：Registry 选择、查重和重新编译，因此保留为 Web-only。Action 内缓存的 `executions` 与 Registry 重复，导出时又会重新编译，应从最小 Web 草稿中删除并由 Registry 派生。
+4. Profile Transfer Protocol 收敛为“一个 Profile = 一个可独立理解、导入、展示、绑定、执行的能力”，直接拥有 `name/description/actions`；`bindings[]/KeyBinding/slot` 全部退出协议。
+5. `Profile.version` **KEEP**，但只作为协议 schema discriminator，用于接收方拒绝不兼容结构；它不等于 migration framework、upgrade pipeline 或多版本 Domain 类型。
+6. `Action.type` **KEEP**，表达跨端业务意图 `OPEN_APP/COMMAND`；`Execution.type` **KEEP**，表达 Runtime primitive `LAUNCH_APP/SEND_HOTKEY`。Executor 不读取 Action.type，不代表协议接收方不需要业务语义。
+7. `Profile.id/appId/commandId/createdAt/updatedAt` 全部退出传输协议：当前 Import=Insert，不按 source id 去重、覆盖或同步；Registry id 与时间只属于 producer authoring。
+8. Runtime 最小模型是 `Runtime local state + 原始 Profile`：保留 RuntimeProfile.id、localNameOverride、iconId、source、Repository 数组顺序和独立 physical binding；删除 sourceBindingId、slot、createdAt、description cache 与整包重复副本。
+9. Profile 导入只需要一个明确 adapter：校验协议、生成 RuntimeProfile.id/source、本地 override 置空并 append。执行时直接读取内嵌 Profile；不需要 Profile DTO → RuntimeDomain → RuntimeAction 的多层同构复制。
+10. 本轮没有代码无法回答的字段归属问题。唯一未规定的是“批量 Profile 文件采用数组还是 envelope”，它是 transport container 选择，不影响单 Profile 协议，列入 DEFER。
+
+## 2. Web Authoring Model Audit
+
+### 当前真实结构
+
+当前 Web 持久化三份数据：
+
+```text
+keyflow.currentProfile
+keyflow.appRegistry
+keyflow.commandRegistry
+```
+
+`currentProfile.bindings[]` 同时保存 entry 编辑 identity、slot、展示 metadata、Registry 引用和已编译 executions。页面 selection/editing/picker/search/saveState 存在 React component state 中，不进入 localStorage。当前没有独立 compile cache；`compileProfile` 在导出时从 Registry 重新生成 executions。
+
+| 字段 | 当前职责 | Web 是否需要 | 是否应进入 Profile | 可否推导 | 建议 |
+| --- | --- | ---: | ---: | ---: | --- |
+| current Profile/draft 容器 | 保存当前编辑集合 | 是 | 否，容器不是单能力协议 | 否 | **KEEP WEB-ONLY** |
+| `bindings[]` | 保存多个可编辑能力 entry | 是，但命名/shape 不需要 | 否 | 可改为 drafts 数组 | **REMOVE** 旧 shape，保留 Web-only draft list |
+| `KeyBinding.id` | React key、Web entry identity | 是 | 否 | index 不足以稳定支撑编辑/删除 | **KEEP WEB-ONLY**，语义改为 `localId` |
+| `slot` | 查找 entry、显示编号、排序、限制六项 | 否 | 否 | 全部可由 localId + array index/order 派生 | **REMOVE** |
+| `KEY_SLOTS/KeySlot` | 旧逻辑键 enum 与六项上限 | 否 | 否 | 不需要 | **REMOVE** |
+| entry `name` | 用户能力名称 | 是 | 是 | 否 | **MOVE TO PROFILE** |
+| entry `description` | 用户能力说明 | 是 | 是，可选 | 否 | **MOVE TO PROFILE** |
+| entry `actions[]` | 用户配置的有序动作 | 是 | 是 | 顺序由数组表达 | **MOVE TO PROFILE**，但编译前后字段不同 |
+| authoring Action `type` | 区分 App/Command Registry 引用与 UI | 是 | 对应业务 type 也应进入协议 | 否 | **KEEP WEB-ONLY** authoring discriminant，并在 compile 输出到 Profile |
+| `appId` | App Registry 引用、查重、显示、重新编译 | 是 | 否 | 不能从 execution 稳定反查 Registry | **KEEP WEB-ONLY** |
+| `commandId` | Command Registry 引用、查重、清理、重新编译 | 是 | 否 | 不能从 keys 稳定反查 Registry | **KEEP WEB-ONLY** |
+| `CommandAction.name` 快照 | Action 展示和默认命名 | 否 | 否 | 可由 Command Registry 的 commandId 派生 | **DERIVE** |
+| authoring Action `executions` 快照 | 当前 Profile 内缓存 Registry 编译结果 | 否，导出会重新编译 | 编译结果应进入 Profile | 可由 Registry ref 派生 | **DERIVE**；不要在最小草稿重复持久化 |
+| `Profile.id="default"` | Schema 必填；无 Web 选择/引用行为 | 否 | 否 | 不需要 | **REMOVE** |
+| `createdAt` | 创建时写入；UI 不读取 | 否 | 否 | 不需要 | **REMOVE** |
+| `updatedAt` | 每次写入刷新；UI 不读取 | 否 | 否 | 不需要 | **REMOVE** |
+| draft array order | Studio 列表顺序、批量 export 顺序 | 是 | 否 | 数组自身表达 | **DERIVE**，不新增 order 字段 |
+| action array order | 动作执行顺序 | 是 | 是 | 数组自身表达 | **MOVE TO PROFILE** |
+| selection/current entry | 当前编辑对象 | 是，瞬时 UI state | 否 | 由 selected localId + list 得到 | **KEEP WEB-ONLY** |
+| picker/editing/search/save state | UI 交互状态 | 是，瞬时 | 否 | 部分可派生但无须协议化 | **KEEP WEB-ONLY** |
+| compile cache | 当前不存在；export 即时 compile | 否 | 否 | 即时生成 | **REMOVE / DO NOT ADD** |
+| App/Command Registry metadata | authoring 选择与编译来源 | 是 | 否 | Registry 自身是事实源 | **KEEP WEB-ONLY** |
+
+### 最小 Web 减法
+
+Web 不需要继续持久化“带 executions 的传输 Profile 草稿”。最小 authoring state 只保存独立能力 drafts 和 Registry refs；compile 时读取 Registry，输出自包含 Profile。这样避免同一 execution 同时存在 Registry、draft Action 和导出 Profile 三份快照。
+
+## 3. Profile Transfer Protocol Audit
+
+判断标准不是“当前 Rust Executor 是否读取”，而是任意接收方能否在没有 Web Registry、Runtime database、slot 或 producer id 时完整理解该能力。
+
+| 字段 | 建议 | 跨端不可替代职责 / 移除归属 |
+| --- | --- | --- |
+| `Profile.version` | **KEEP** | 协议 schema discriminator；接收方需要明确判断能否安全解析。只支持一个值也有拒绝错误协议的职责，不意味着 migration system。 |
+| `Profile.name` | **KEEP** | 人类可读的能力名称；Runtime 导入后需要展示，手写 Profile 也需要自描述。 |
+| `Profile.description?` | **KEEP** | 可选的人类可读说明；跨 producer/consumer 解释能力，不是 Runtime cache。 |
+| `Profile.actions[]` | **KEEP** | 能力的有序动作链，是实际行为主体。 |
+| `Action.type` | **KEEP** | 业务意图：`OPEN_APP` 或 `COMMAND`。允许 UI/validator 在当前平台未配置时仍理解动作，约束各平台 execution 属于同一业务动作。 |
+| `Action.executions` | **KEEP** | 将同一业务动作的 Windows/macOS 明确实现收在一起，支持单平台合法配置且禁止跨平台猜测。 |
+| `executions.windows?` | **KEEP** | Windows 明确 implementation。 |
+| `executions.macos?` | **KEEP** | macOS 明确 implementation。 |
+| `Execution.type` | **KEEP** | Runtime primitive dispatcher 的唯一判别：`LAUNCH_APP/SEND_HOTKEY`。与 Action.type 职责不同。 |
+| `SEND_HOTKEY.keys[]` | **KEEP** | 自包含的实际按键序列；接收方不能从 `COMMAND` 名称推断。 |
+| `LAUNCH_APP.executableNames` | **KEEP** | Windows 应用启动 locator。 |
+| `LAUNCH_APP.aliases` | **KEEP** | Windows alias/PATH 候选。 |
+| `LAUNCH_APP.bundleIds` | **KEEP** | macOS bundle locator。 |
+| `LAUNCH_APP.appNames` | **KEEP** | macOS app name locator。 |
+| `LAUNCH_APP.knownPaths` | **KEEP** | 用户/producer 明确提供的当前平台路径 fallback。 |
+| `Profile.id` | **REMOVE** | 当前没有 transfer identity 使用；Import=Insert，不去重、覆盖或同步。若 Web 需 local id，留在 authoring。 |
+| `bindings[]` | **REMOVE** | 旧“一个包内多个逻辑键”层；一个 Profile 已收敛为一个独立能力。 |
+| `KeyBinding` | **REMOVE** | 不含实体键关系，名称与 Runtime Binding 冲突；其 name/description/actions 提升到 Profile。 |
+| `slot/KEY_SLOTS` | **REMOVE** | producer UI 顺序泄漏；接收方理解和执行不需要。 |
+| `KeyBinding.id` | **REMOVE** | 只为旧包内 entry/sourceBindingId 回查；单能力 Profile 不需要。 |
+| `appId` | **REMOVE** | Web App Registry identity；最终 execution 已自包含启动 locator。 |
+| `commandId` | **REMOVE** | Web Command Registry identity；最终 execution 已自包含 keys。 |
+| `CommandAction.name` | **REMOVE** | Web Registry/UI metadata；能力层已有 Profile.name，Action 业务 type 已足够理解动作。 |
+| `createdAt/updatedAt` | **REMOVE** | producer authoring metadata；不影响接收方理解、校验或执行。 |
+| physical input / icon / source / local order / local rename | **REMOVE** | Runtime local state，不属于可移植能力。 |
+
+### 协议约束
+
+- Profile 表示单能力，可以包含多个有序 Action。
+- 每个 Action 至少提供一个平台 implementation。
+- `OPEN_APP` 的所有 implementation 必须是 `LAUNCH_APP`；`COMMAND` 的所有 implementation 必须是 `SEND_HOTKEY`。
+- 当前平台缺失是合法 Profile 的运行状态，不回退、不转换、不猜测。
+- keys 必须非空且不能重复；locator 必须至少提供一个当前 primitive 可用的定位线索。
+- Profile 应能脱离 Registry 独立阅读、手写、验证和执行。
+
+## 4. Runtime Internal Model Audit
+
+### 当前模型
+
+```text
+RuntimeProfile {
+  id, name, description, iconId, source,
+  sourceProfile, sourceBindingId, createdAt
+}
+
+BindingState {
+  bindings: PersistedBinding[]
+  physicalToProfile
+  profileToPhysical
+}
+
+PersistedBinding {
+  runtimeProfileId,
+  physicalInput
+}
+```
+
+| 字段 | 当前职责 | 本地真实状态 | Profile 副本 | 可推导 | 需持久化 | 建议 |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| `RuntimeProfile.id` | Repository command identity、Binding foreign key | 是 | 否 | 否 | 是 | **KEEP LOCAL** |
+| `RuntimeProfile.name` | 初始复制 entry name；rename 后成为本地值 | 部分 | 是 | 默认可由 Profile.name 推导 | 只有 override 需 | **REPLACE WITH localNameOverride?** |
+| `RuntimeProfile.description` | GUI 副标题 | 否 | 是 | 可由 Profile.description 推导 | 否 | **REMOVE / DERIVE** |
+| `iconId?` | 用户本地图标选择 | 是 | 否 | 否 | 是 | **KEEP LOCAL** |
+| `source` | SYSTEM/EXTERNAL 分组与删除保护 | 是 | 否 | 否 | 是 | **KEEP LOCAL** |
+| `sourceProfile` | 保存导入执行 payload | 旧整包在每个 entry 重复 | flatten 后是单个原始 Profile | 不可删除执行 payload | 是 | **KEEP AS profile: Profile**，不再复制 package |
+| `sourceBindingId` | 在旧 sourceProfile.bindings 中找被展开 entry | 否 | 否 | 只因旧层级存在 | 否 | **REMOVE** |
+| `createdAt` | insert 时生成；当前无人读取 | 否 | 否 | 不需要 | 否 | **REMOVE** |
+| `slot`（source 内） | Rust只保存/校验 | 否 | 是 | 不需要 | 否 | **REMOVE** |
+| repository Vec order | GUI 当前显示/插入顺序 | 是 | 否 | Vec 自身表达 | 随 repository 保存 | **KEEP/DERIVE**，不新增 order 字段 |
+| `PersistedBinding.runtimeProfileId` | 指向本地实例 | 是 | 否 | 否 | 是 | **KEEP LOCAL** |
+| `PersistedBinding.physicalInput` | 实体触发键 | 是 | 否 | 否 | 是 | **KEEP LOCAL** |
+| `physicalToProfile` | 执行时从 key 查实例 | 是，内存索引 | 否 | 可由 persisted bindings rebuild | 否 | **DERIVE IN MEMORY** |
+| `profileToPhysical` | UI/改绑/解绑反向索引 | 是，内存索引 | 否 | 可由 persisted bindings rebuild | 否 | **DERIVE IN MEMORY** |
+| snapshot `actionHotkey` | GUI convenience | 否 | 是/执行数据投影 | 可从 Profile 当前平台 actions 派生 | 否 | **DERIVE VIEW ONLY** |
+| snapshot `physicalInput` | GUI 展示 | 否，view projection | 来自 BindingState | 可查反向索引 | 否 | **DERIVE VIEW ONLY** |
+
+### Adapter 最小职责
+
+```text
+validated Profile
+→ allocate RuntimeProfile.id
+→ set source
+→ localNameOverride = none
+→ iconId = none
+→ append { local state + Profile }
+```
+
+不需要把 Action/Execution 再复制为 RuntimeAction/RuntimeExecution；Rust 需要一个与协议对应的 serde DTO 作为 RuntimeProfile 内的 `profile`，Executor 直接读取它即可。
+
+## 5. Cross-Layer Leakage
+
+| 字段/结构 | 当前在哪层定义 | 实际属于哪层 | 泄漏原因 | 应如何收回 |
+| --- | --- | --- | --- | --- |
+| `slot/KEY_SLOTS` | shared Profile + Web + Rust DTO | 旧 Web UI；目标中无职责 | 曾把 logical key 当跨端 identity | 删除；Web 用 localId/index，Runtime 用 physical Binding |
+| `bindings[]/KeyBinding` | shared Profile | 旧 Web authoring collection | 曾把一套键盘配置作为单 Profile | entry 提升为单 Profile，Web 自己维护 draft list |
+| `Profile.id="default"` | shared Profile | 当前无真实层归属 | Schema/历史 shape 要求 | 删除；Web 若需 local identity 使用 localId |
+| `createdAt/updatedAt` | shared Profile | Web authoring metadata，但当前 UI也不用 | Web store 时间戳直接进入 export | 从协议删除；当前无功能则 Web 也删除 |
+| `appId` | shared Action | Web Registry authoring | Web draft 与 compiled Profile 共用 POJO | 留在 Web action draft，compile 后丢弃 |
+| `commandId` | shared Action | Web Registry authoring | 同上 | 留在 Web action draft，compile 后丢弃 |
+| `CommandAction.name` | shared Action | Web Registry/UI projection | 缓存 command name | 从 Registry 派生，不输出到协议 |
+| Action `executions` 草稿快照 | Web localStorage/shared shape | Profile compile output | authoring 与 transfer 同 POJO | Web 只存 Registry ref；compile 生成 protocol executions |
+| `sourceBindingId` | RuntimeProfile | 旧 Profile→Runtime adapter | import 将包内 entry 展开却保留整包 | 单 Profile import 后删除 |
+| Runtime `description` | RuntimeProfile | Profile | GUI convenience cache | 从 `profile.description` 派生 |
+| Runtime `name` 初始副本 | RuntimeProfile | Profile + Runtime override | 为支持本地 rename 而全量复制 | 只持久化 `localNameOverride?` |
+| source Profile package copy | 每个 RuntimeProfile | Transfer payload，但粒度错误 | 每个 binding 都复制整包 | RuntimeProfile 只嵌入对应单 Profile |
+| `iconId` | RuntimeProfile/snapshot | Runtime local | 当前没有泄漏进 shared Profile | 保持 Runtime-only |
+| `source` | RuntimeProfile/snapshot | Runtime local | 当前没有泄漏进 shared Profile | 保持 Runtime-only |
+| `physicalInput` | Binding/snapshot | Runtime local | 当前没有泄漏进 shared Profile | 保持 Runtime-only |
+
+当前没有 Runtime-only 字段进入 TypeScript shared Profile 的严重反向泄漏；主要泄漏方向是 Web authoring → Profile，以及 Profile 旧包结构 → Runtime 重复缓存。
+
+## 6. Identity Audit
+
+### Web identity
+
+```text
+Draft.localId
+AppDefinition.id (appId)
+CommandDefinition.id (commandId)
+```
+
+- `Draft.localId`：用于 React key、选择、编辑、删除和 localStorage 中稳定定位，只在 Web 有意义。
+- `appId/commandId`：真正 Registry identity，用于 lookup、查重和 compile；不跨入 Profile Protocol。
+- 当前 `Profile.id/default` 没有 Web 引用者，不是有效 authoring identity。
+
+### Transfer identity
+
+当前 Profile **不需要稳定 id**：
+
+- 不用于引用：Runtime Binding 指向 RuntimeProfile.id。
+- 不用于去重：重复 import 会 append。
+- 不用于覆盖：Repository 从不按 Profile.id 查找。
+- 不用于同步：当前没有 sync/merge。
+- 不用于 Registry lookup：协议已 self-contained。
+
+因此 Transfer Profile 的 identity 是其传输对象本身，而不是一个 id 字段。文件名也不进入协议。
+
+### Runtime identity
+
+```text
+RuntimeProfile.id
+PersistedBinding.runtimeProfileId → RuntimeProfile.id
+```
+
+这是当前真正用于 Repository find、rename、icon、delete、snapshot command 和实体 Binding foreign key 的 identity，必须保留为 Runtime local。
+
+`KeyBinding.id/sourceBindingId` 只因旧多-entry Profile 展开存在；`builtin-*` id 当前也兼作稳定 system Runtime id 种子。目标应由 builtin import/seed adapter 直接分配稳定 RuntimeProfile.id，而不是把 fixture entry id 留在 Transfer Profile。
+
+## 7. Final Web Model
+
+唯一推荐的最小 authoring 概念：
+
+```text
+WebAuthoringState {
+  drafts: ProfileDraft[]
+  appRegistry: AppDefinition[]
+  commandRegistry: CommandDefinition[]
+}
+
+ProfileDraft {
+  localId
+  name
+  description?
+  actions: AuthoringAction[]
+}
+
+AuthoringAction =
+  { type: OPEN_APP, appId }
+  | { type: COMMAND, commandId }
+```
+
+规则：
+
+- draft 与 action 顺序由数组表达，不保存 slot/order 字段。
+- selection/editing/search/picker/save feedback 是 component/store UI state，不属于持久 authoring Domain。
+- executions 在 compile 时从 Registry 读取，不在 draft 重复缓存。
+- createdAt/updatedAt 当前没有产品功能读取，删除而不是保留“以备以后”。
+- `localId` 不输出到 Profile。
+
+## 8. Final Profile Protocol
+
+唯一推荐的最小、可手写协议：
+
+```text
+Profile {
+  version
+  name
+  description?
+  actions: Action[]
+}
+
+Action =
+  OpenAppAction {
+    type: OPEN_APP
+    executions {
+      windows?: LaunchAppExecution
+      macos?: LaunchAppExecution
+    }
+  }
+  |
+  CommandAction {
+    type: COMMAND
+    executions {
+      windows?: SendHotkeyExecution
+      macos?: SendHotkeyExecution
+    }
+  }
+
+LaunchAppExecution {
+  type: LAUNCH_APP
+  executableNames? / aliases? / bundleIds? / appNames? / knownPaths?
+}
+
+SendHotkeyExecution {
+  type: SEND_HOTKEY
+  keys[]
+}
+```
+
+示例：
+
+```json
+{
+  "version": "<target-protocol-version>",
+  "name": "复制",
+  "description": "复制当前选中的内容",
+  "actions": [
+    {
+      "type": "COMMAND",
+      "executions": {
+        "windows": { "type": "SEND_HOTKEY", "keys": ["CTRL", "C"] },
+        "macos": { "type": "SEND_HOTKEY", "keys": ["META", "C"] }
+      }
+    }
+  ]
+}
+```
+
+上例中的 `version` 是概念占位符，不是建议的实际字面值。目标 shape 与当前 v1.2 不兼容，因此不能继续标成 `1.2`；实际 discriminator 需在实施前单独确定。该对象不依赖 producer id、Registry、slot、UI 顺序或 Runtime local database。`version` 只是协议判别器；本轮不新增迁移或升级设施。
+
+## 9. Final Runtime Model
+
+唯一推荐的最小 Runtime 持久结构：
+
+```text
+RuntimeRepository {
+  profiles: RuntimeProfile[]          // 数组即本地顺序
+}
+
+RuntimeProfile {
+  id                                 // Runtime local instance id
+  profile: Profile                   // 原始、已验证 transfer object
+  localNameOverride?
+  iconId?
+  source: SYSTEM | EXTERNAL
+}
+
+BindingStore {
+  bindings: PersistedBinding[]
+}
+
+PersistedBinding {
+  runtimeProfileId
+  physicalInput
+}
+
+Runtime memory indexes {
+  physicalToProfile                  // 从 bindings 派生
+  profileToPhysical                  // 从 bindings 派生
+}
+```
+
+展示字段：
+
+```text
+displayName = localNameOverride ?? profile.name
+description = profile.description
+physicalInput = profileToPhysical[runtimeProfile.id]
+actionHotkey = derive(profile.actions, currentPlatform)
+```
+
+Runtime 不保存 slot、sourceBindingId、createdAt、description cache、name 默认副本或重复 source package。
+
+## 10. Final Data Flow
+
+### 正向
+
+```text
+Web ProfileDraft
+  localId + Registry refs
+        ↓ compile
+  丢弃 localId/appId/commandId/UI state
+  从 Registry 生成 self-contained executions
+        ↓
+Profile Transfer Protocol
+  version + name + description? + typed actions/executions
+        ↓ validate + import adapter
+  校验 protocol
+  生成 RuntimeProfile.id/source
+  初始化 localNameOverride/iconId
+        ↓
+RuntimeProfile { local state + Profile }
+        ↓ bind
+PersistedBinding { runtimeProfileId, physicalInput }
+        ↓ physical key
+RuntimeProfile.profile.actions（数组顺序）
+        ↓ executions[currentPlatform]
+Execution.type
+        ↓
+LAUNCH_APP / SEND_HOTKEY Executor
+```
+
+只发生两次有价值的转换：
+
+1. compile：Registry refs → 自包含 platform executions。
+2. import adapter：portable Profile → Runtime local instance。
+
+其余 Action/Execution 不应同构复制。
+
+### Runtime 反向导出
+
+```text
+RuntimeProfile
+        ↓ export adapter
+取 runtimeProfile.profile
+丢弃 id/localNameOverride/iconId/source/physicalInput/local order
+        ↓
+Profile Transfer Protocol
+```
+
+默认导出保留原始 portable `profile.name`，不把本地 rename 写回协议；本地 rename 是实例偏好。如果产品明确提供“将本地改名另存为新 Profile”，那是显式用户操作，不是默认 adapter 行为。
+
+## 11. Safe Remove
+
+以下是纯历史、未参与当前关键行为或可直接派生的目标删除项：
+
+- `RuntimeProfile.createdAt`：当前没有读取者。
+- RuntimeProfile `description` cache：直接来自 Profile，无本地编辑。
+- snapshot 持久化设想中的 `actionHotkey/physicalInput`：保持 view projection，不进入 Repository。
+- Web `Profile.createdAt/updatedAt`：当前 UI、排序、查重和 compile 都不读取。
+- Web/Transfer `Profile.id="default"`：没有引用、覆盖、去重或同步职责。
+- `CommandAction.name` 快照：由 Command Registry 派生，协议由 Profile.name + Action.type 自描述。
+- authoring draft 中的 executions cache：export 已从 Registry 重新编译。
+- 显式 `order` 字段：当前不存在，也不应新增；数组顺序已足够。
+
+这些字段的代码删除仍需正常静态测试，但不改变业务能力或目标 shape 的主体粒度。
+
+## 12. Structural Cleanup
+
+以下删除会调整结构，但不改变现有产品能力：
+
+- `bindings[]/KeyBinding` 收平为一个 Profile 一个能力。
+- entry `name/description/actions` 提升到 Profile。
+- 删除 `slot/KEY_SLOTS/KeySlot`，Web update/selection 改用 localId，编号用 array index。
+- Web authoring 与 Transfer Profile 分离：appId/commandId 留在 draft，compile 只输出 executions。
+- Rust `ProfileBinding` 删除，Profile 直接持有 actions。
+- Runtime Import 从“一包展开 N 项”变为“一 Profile Insert 一 RuntimeProfile”。
+- 删除 `sourceBindingId` 与 source package N 份复制。
+- Runtime `name` 改为 `localNameOverride?`，默认展示从 Profile 推导。
+- builtin fixture 从旧多-binding package 收敛为单能力 Profile 输入集合；稳定 system id 由 Runtime seed adapter 分配。
+- import/export fixture、Schema parity 与 Repository tests 按三层边界重写。
+
+这些都是 shape/adapter 清理，不需要新 Domain Layer、package 或 Factory。
+
+## 13. Keep
+
+### Web-only
+
+- draft `localId`
+- Profile draft name/description/actions
+- `appId/commandId`
+- App/Command Registry 及其编辑 metadata
+- draft/action 数组顺序
+- selection/editing/search/save feedback 等 UI state
+
+### Profile Protocol
+
+- `version`（仅 protocol discriminator）
+- `name/description?`
+- 有序 `actions[]`
+- `Action.type`
+- `executions.windows?/macos?`
+- `Execution.type`
+- `SEND_HOTKEY.keys`
+- `LAUNCH_APP` 当前 locator fields
+
+### Runtime-only
+
+- `RuntimeProfile.id`
+- 内嵌、已验证 `Profile`
+- `localNameOverride?`
+- `iconId?`
+- `source`
+- Repository 数组顺序
+- `runtimeProfileId + physicalInput`
+- 从 Binding 派生的双向内存索引
+
+## 14. Deferred Questions
+
+1. **批量文件容器**：一次导出多个独立 Profile 时使用 JSON array，还是使用仅负责 transport 的 envelope。当前代码只能证明需要批量能力，不能决定外部生态更适合哪种文件容器；这不影响单 Profile Protocol。
+2. **目标 protocol discriminator 字面值**：目标 shape 与当前 v1.2 不兼容，必须使用不同 discriminator，但仅靠当前代码不能命名它。本轮不把该问题扩张成版本系统或 migration 设计。
+
+除此之外没有需要 DEFER 的字段归属问题。尤其 `slot`、三层 ids、Action.type、version 字段本身、Registry refs 和 Runtime caches 都能由当前职责直接判断。
+
+## Three-Layer Audit Receipt
+
+- 本轮只审查现有三层职责并追加文档，没有修改 TypeScript、Rust、Schema、fixture、localStorage 或 Runtime 数据。
+- 未设计 migration、Factory、Creator、Device Identity、Workflow、新 Domain Layer或新 package。
+- 未运行构建/测试；没有代码变化。本节结论来自当前代码引用、import/export、Repository、Binding 与执行路径的静态事实。
+
+# Three-Layer Cleanup Receipt
+
+## 1. Final Models
+
+实际代码已落地为三层不同模型。
+
+```text
+Web Authoring
+WebAuthoringState { drafts[] }
+ProfileDraft { localId, name, description?, AuthoringAction[] }
+AuthoringAction = OPEN_APP + appId | COMMAND + commandId
+
+Profile Protocol v2.0
+Profile { version, name, description?, Action[] }
+Action.type + executions.windows?/macos?
+Execution.type + payload
+
+Runtime Internal
+RuntimeProfile { id, profile, localNameOverride?, iconId?, source }
+PersistedBinding { runtimeProfileId, physicalInput }
+```
+
+Web 与 Runtime 不再把 Transfer Profile 当内部 authoring/local POJO。唯一跨端标准位于 `packages/keyflow-contract` 的 Profile v2.0 shape，Rust `profile.rs` 是该协议的 serde 映射。
+
+## 2. Removed Fields
+
+实际从 Profile Protocol 删除：
+
+- `Profile.id`
+- `createdAt/updatedAt`
+- `bindings[]/KeyBinding/KeyBinding.id`
+- `slot/KEY_SLOTS/KeySlot`
+- `appId/commandId/CommandAction.name`
+- 所有 Runtime-only identity、physical binding、icon、source/order
+
+实际从 Web draft 删除：
+
+- fixed `KEY_1`–`KEY_6` 与最多六项限制
+- `Profile.id="default"`
+- timestamps
+- Action executions 快照
+- Command name 快照
+
+实际从 RuntimeProfile 删除：
+
+- `name` 默认副本，改为 `localNameOverride?`
+- description cache
+- `sourceProfile/sourceBindingId`
+- createdAt
+- slot/ProfileBinding
+- 每个 entry 重复保存旧 source package
+
+Registry 的 AppDefinition/CommandDefinition 仍保留各自 Web 管理 metadata；这些不是 Profile Protocol 字段。
+
+## 3. Web Compile Path
+
+```text
+ProfileDraft.localId/name/description/actions
+  OPEN_APP.appId ── lookup App Registry ── LAUNCH_APP executions
+  COMMAND.commandId ─ lookup Command Registry ─ SEND_HOTKEY executions
+        ↓ profileSchema.parse
+Profile v2.0
+```
+
+`localId/appId/commandId` 在 `profileCompiler.ts` 终止，不进入返回的 Profile。缺失 Registry 引用、空名称、空 Action、无平台 implementation 或非法 execution 会阻止导出。
+
+## 4. Profile Protocol
+
+最终 TypeScript 概念与 Zod shape：
+
+```ts
+interface Profile {
+  version: string; // Schema literal: "2.0"
+  name: string;
+  description?: string;
+  actions: Action[];
+}
+
+type Action =
+  | { type: "OPEN_APP"; executions: { windows?: LaunchAppExecution; macos?: LaunchAppExecution } }
+  | { type: "COMMAND"; executions: { windows?: SendHotkeyExecution; macos?: SendHotkeyExecution } };
+
+type Execution =
+  | { type: "LAUNCH_APP"; executableNames?; aliases?; bundleIds?; appNames?; knownPaths? }
+  | { type: "SEND_HOTKEY"; keys: KeyCode[] };
+```
+
+最终 protocol discriminator 是 **`"2.0"`**。选择原因：目标 shape 与 v1.2 不兼容，`2.0` 是不引入额外版本设施的最小明确 major discriminator。没有新增 FactoryV2、MigrationRegistry 或 UpgradePipeline。
+
+## 5. Runtime Import Path
+
+```text
+JSON object 或 JSON Profile[]
+→ Profile::many_from_file / many_from_json
+→ serde strict DTO + Profile::validate
+→ ProfileRepository::insert_import
+→ RuntimeProfile { generated id, profile, no override/icon, EXTERNAL }
+→ profiles.json
+```
+
+一个 Profile 生成一个 RuntimeProfile。数组文件按数组顺序逐个 Insert。重复导入不按 source id 去重。
+
+## 6. Runtime Execution Path
+
+```text
+physicalInput
+→ BindingState.physicalToProfile
+→ RuntimeProfile.id
+→ RuntimeProfile.profile.executions_for(currentPlatform)
+→ Profile.actions 原数组顺序
+→ action.executions[currentPlatform]
+→ Execution.type
+→ existing Executor
+```
+
+不存在 RuntimeAction/RuntimeExecution 同构副本。`Action.type` 只用于协议业务语义与校验；Executor 继续仅按 `Execution.type` 分发。
+
+## 7. Runtime Local State
+
+- `RuntimeProfile.id`：Repository identity 与 PersistedBinding foreign key，持久化在 `profiles.json`。
+- `profile`：完整、严格验证后的 portable Profile，持久化在 `profiles.json`。
+- `localNameOverride?`：默认 None；用户 rename 后才写入。UI 为 `override ?? profile.name`。
+- `iconId?`：本地图标选择，持久化在 `profiles.json`。
+- `source`：SYSTEM/EXTERNAL 分组与删除保护，持久化在 `profiles.json`。
+- local order：由 Repository `profiles` 数组顺序表达，没有新增 order 字段。
+- physical binding：`runtimeProfileId + physicalInput` 独立保存在 `bindings.json`。
+- 双向 Map：启动时从 PersistedBinding rebuild，不单独持久化。
+
+默认导出 portable Profile 时不包含 localNameOverride；本轮没有新增 Runtime export UI。
+
+## 8. Builtin Cleanup
+
+旧 `builtin-profile.json` 已删除。新 `builtin-profiles.json` 是 8 个独立 Profile v2.0 的数组：复制、粘贴、剪切、撤销、重做、全选、保存、查找。
+
+这些 Profile 不含 id、slot、KEY_1–KEY_8、bindings 或 Registry id。`repository.rs` seed adapter 按数组顺序配对 Runtime-only stable ids：
+
+```text
+system-builtin-copy
+system-builtin-paste
+...
+system-builtin-find
+```
+
+stable id 不进入 Profile Protocol。
+
+## 9. Import / Export Semantics
+
+```text
+Import = Insert
+```
+
+同一 Profile 导入两次生成两个不同 RuntimeProfile.id。Web 批量导出最终选择最小 JSON array；数组每一项都独立通过 Profile v2.0 Schema，Runtime 同时接受单 Profile object 和 Profile array 文件。
+
+## 10. Compatibility Impact
+
+- 旧 `keyflow.currentProfile` localStorage 不再读取；Web 使用新 key `keyflow.profileDrafts`。旧浏览器配置不会自动迁移，页面从空 drafts 开始。
+- 旧 Profile v1.2 JSON 会被 Runtime 以 `UNSUPPORTED_PROFILE_VERSION` 或 shape error 拒绝。
+- 旧 Runtime `profiles.json` 与新 RuntimeProfile shape 不兼容；沿用 Repository 现有失败回退行为，旧 external RuntimeProfile 不会载入，随后重新 seed 8 个 system profiles。
+- `bindings.json` 会在启动 rebuild 时过滤不存在的旧 external RuntimeProfile id；稳定 system ids 仍可继续关联对应 system profile。
+- 没有建设 migration framework；开发环境需要旧外部能力时，应重新从 v2.0 Profile 导入。
+
+## 11. Files Changed
+
+- `packages/keyflow-contract/src/{profile,action,execution,constants,index}.ts`：Profile v2.0 类型减法。
+- `packages/keyflow-contract/src/schemas/{profile,execution}.schema.ts`：严格 v2.0 Schema 与 execution 校验。
+- `packages/keyflow-contract/fixtures/profile-v2.0.example.json`：独立、可手写 Profile fixture；删除 v1.2 fixture。
+- `src/models/authoring.ts`：最小 Web-only draft 边界。
+- `src/stores/profileStore.ts`、`storageService.ts`：draft list/localId 持久化，删除 slot 与旧 migration。
+- `src/services/profileCompiler.ts`：Registry ref → self-contained Profile compile。
+- `src/services/exportService.ts`：Profile 数组校验/下载。
+- `src/services/setupService.ts`：仅处理 authoring refs 与展示派生，不创建 transfer Action cache。
+- `src/pages/{Overview,KeySetup,KeyMapping,Export}Page.tsx`、`AppLayout.tsx`：按 draft/index 展示与编辑，移除逻辑 Slot/六项 UI。
+- `runtime/src-tauri/src/profile.rs`：Rust v2.0 protocol DTO、严格验证、当前平台/顺序读取。
+- `runtime/src-tauri/src/repository.rs`：最小 RuntimeProfile、Import=Insert、本地 rename override、builtin seed。
+- `runtime/src-tauri/src/main.rs`：直接通过 `RuntimeProfile.profile.actions` 执行与派生 snapshot。
+- `runtime/src-tauri/fixtures/builtin-profiles.json`：8 个独立 Profile；删除旧 fixture。
+- `tests/model-tests.ts`、root `package.json`：Profile Schema/Web compile tests。
+
+`.gitignore` 中 `docs/` 是本轮开始前已存在的用户修改，本轮未编辑或撤销。
+
+## 12. Tests Added / Updated
+
+- TS model tests：Command compile 无 commandId、App compile 无 appId、无 localId、v2.0 Schema、拒绝 v1.2/slot、macOS-only、Action 顺序。
+- Rust Profile tests：手写 v2.0、macOS-only import、Action/Execution mismatch、CURRENT_PLATFORM_NOT_CONFIGURED、多 Action 顺序。
+- Rust Repository tests：重复 Import ids 不同、本地 rename 不改 portable name、8 个 system profiles seed once/不可删除。
+- 既有 Binding last-wins 与 Execution key mapping tests 保留未改。
+
+## 13. Verification Results
+
+### Passed
+
+- Studio `npm run typecheck`
+- Studio `npm run build`
+- Studio `npm run test:models`
+- Runtime TypeScript `npm run typecheck`
+- Runtime TypeScript `npm run build`
+- Runtime Rust `cargo check`
+- Runtime Rust `cargo test`：8 项通过
+- `git diff --check`
+
+### Not run
+
+- 工程没有现成的真实浏览器自动化测试基础设施，因此未执行 Web 浏览器端到端测试。
+- 未启动桌面 Runtime 对旧开发数据执行人工重置与窗口冒烟测试。
+- 按本轮范围，未执行真实键盘、macOS/Windows Executor、全局快捷键和系统应用启动实机验证。
+
+### Requires manual verification
+
+- 清理旧 `keyflow.currentProfile` 与旧 Runtime `profiles.json` 后，人工确认首次启动、八个 builtin 展示和批量 JSON 导入 UI。
+- 静态、构建和仓储测试通过不等同于真实桌面窗口与操作系统 Executor 证明。
+
+## 14. Scope Check
+
+本轮没有修改：
+
+- `runtime/src-tauri/src/execution.rs` Execution backend / enigo
+- `runtime/src-tauri/src/binding.rs` Binding semantics
+- global shortcut 注册、Pressed/Released 语义
+- Device Identity
+- Blink / Workflow
+- ProfileFactory
+- Runtime Creator / Open App Picker / Hotkey Capture
+- Cloud / Account
+- Migration Framework
+
+修改仅覆盖三层模型、两个明确边界、fixtures、对应 UI 适配与测试。
+
+## 2026-09-02：deps 编译产物与磁盘占用核查
+
+本次仅检查磁盘、Cargo 配置及 Git 忽略状态，没有执行清理或构建。
+
+- `runtime/src-tauri/target/debug/deps` 实际磁盘占用约 2.0 GiB，包含 7,502 个文件，是 Runtime 的 Rust/Cargo 调试编译产物目录。
+- 文件包括 5,999 个 `.o` 目标文件、383 个 `.rlib` Rust 库、535 个 `.rmeta` 编译元数据、23 个 `.dylib` 动态库，以及依赖描述文件和可执行文件。文件逻辑大小之和与 `du` 的磁盘占用不同，不应混用。
+- Cargo.toml 声明 Tauri、对话框、全局快捷键、单实例、serde、enigo 等依赖；目录中可见 tauri、tauri_utils、objc2_app_kit、tokio 等直接或传递依赖的编译文件。同一库存在多个带不同哈希的产物，说明缓存中有多个编译实例；具体由哪次源码、特性或构建参数变化产生，未逐项追溯。开发编译及中间文件保留共同导致体积较大。
+- 整个 `runtime/src-tauri/target` 约 2.5 GiB，其中 `debug/build` 约 348 MiB、`debug/incremental` 约 147 MiB。另有两处 Vite 预构建缓存：根目录 `node_modules/.vite/deps` 约 8.6 MiB，Runtime 下同名目录约 3.1 MiB。
+- 当前 `.gitignore` 包含 `target/`，`git check-ignore` 确认该 deps 路径被忽略，`git ls-files runtime/src-tauri/target` 无输出，因此当前 Git 索引未跟踪该目录。
+
+需要回收空间时，可在停止开发构建/运行后进入 `runtime/src-tauri` 执行 `cargo clean`，清理整个 target。它清理编译产物，不修改项目源码；后续开发构建会重新生成，首次重编译会更慢。这里只提供清理方式，尚未执行。
+
+# Post-Cleanup Implementation Audit
+
+审查日期：2026-09-02。审查对象：当前工作树中的 Three-Layer Cleanup 实现，而非设计稿或历史提交。只追加本节，没有修改项目源码、fixture 或项目测试。实验程序位于 /private/tmp/keyflow-audit.9uhX5o，使用 #[path] 引用当前真实 Rust 模块，没有复制实现。现有工作区改动和既有文档章节保留。
+
+## 1. Verdict
+
+**FAIL**
+
+三层主结构及旧字段删除已经落地，但严格跨端校验与自然反向序列化尚未满足验收要求。存在两处实测 TS/Rust 接受集合差异，以及一个合法 Profile 经 Rust 序列化后不再符合 Zod 的反向边界问题。原 Cleanup Receipt 的“完整 portable Profile 可直接反向导出”结论需要以下事实限定。
+
+## 2. Legacy Residue
+
+检索覆盖当前仓库源码、测试、fixtures、隐藏文件和被 .gitignore 忽略的 docs；使用 rg --hidden --no-ignore，排除 .git、node_modules、target、dist（第三方依赖、历史 Git 对象和生成产物不是当前源模型）。没有仅依赖默认 rg，否则当前被忽略的 docs 会漏检。不存在 doc/、knowledge/；复用既有 docs 文档。
+
+检索表达式：KEY_[1-8]|KEY_SLOTS|KeySlot|slot|KeyBinding|bindings|sourceBindingId|Profile\\.id|createdAt|updatedAt|appId|commandId。逐文件全部命中行号如下；同一行多次命中合并一次。行号指追加本节前快照，避免把报告自身新增的关键字误判为实现残留。
+
+| 路径 | 全部命中行号（本次追加前） | 分类 | 职责说明 |
+|---|---|---|---|
+| `src/services/setupService.ts` | 19, 20, 22, 24, 34, 41 | VALID WEB-ONLY | Web 草稿引用、选择器、显示或统计 |
+| `src/services/profileCompiler.ts` | 6, 7, 16, 17 | VALID WEB-ONLY | 查 Registry 生成 portable executions，引用不输出 |
+| `src/pages/ExportPage.tsx` | 17, 19 | VALID WEB-ONLY | Web 草稿引用、选择器、显示或统计 |
+| `src/pages/KeyMappingPage.tsx` | 20, 21 | VALID WEB-ONLY | Web 草稿引用、选择器、显示或统计 |
+| `src/pages/KeySetupPage.tsx` | 32, 36 | VALID WEB-ONLY | Web 草稿引用、选择器、显示或统计 |
+| `src/components/command-registry/CommandEditor.tsx` | 14 | VALID WEB-ONLY | Web Registry metadata，未进入 Profile schema |
+| `src/components/key-setup/ShortcutPicker.tsx` | 11 | VALID WEB-ONLY | Web 草稿引用、选择器、显示或统计 |
+| `src/stores/commandRegistryStore.ts` | 24 | VALID WEB-ONLY | Web Registry metadata，未进入 Profile schema |
+| `src/components/app-registry/AppEditor.tsx` | 11 | VALID WEB-ONLY | Web Registry metadata，未进入 Profile schema |
+| `src/stores/appRegistryStore.ts` | 25 | VALID WEB-ONLY | Web Registry metadata，未进入 Profile schema |
+| `src/models/authoring.ts` | 4, 5, 17, 18 | VALID WEB-ONLY | Web 草稿引用、选择器、显示或统计 |
+| `packages/keyflow-contract/src/command.ts` | 13, 14 | VALID WEB-ONLY | Web Registry metadata，未进入 Profile schema |
+| `docs/web-v1-architecture-and-profile-contract.md` | 12, 22, 23, 24, 25, 26, 27, 32, 40, 42, 46, 49, 51, 59, 62, 70, 73, 78, 79, 80, 92, 94, 99, 105, 107, 123, 125, 134, 138, 162, 196, 198, 208, 209, 231, 241, 322, 331, 379, 389, 394, 398, 443, 445, 489, 491, 499, 517, 569, 582, 609, 633, 635, 637, 643, 655, 660, 711, 713, 753, 771, 773, 800, 806, 814, 817, 818, 821, 832, 833, 869, 875, 888, 891, 901, 909, 943, 945, 947, 948, 950, 959, 960, 964, 977, 979, 989, 1006, 1010, 1069, 1117, 1118, 1119, 1120, 1121, 1122, 1123, 1125, 1126, 1133, 1134, 1135, 1136, 1138, 1144, 1147, 1148, 1151, 1156, 1164, 1165, 1166, 1175, 1176, 1177, 1178, 1179, 1180, 1181, 1182, 1189, 1190, 1191, 1192, 1195, 1202, 1208, 1222, 1224, 1236, 1237, 1238, 1248, 1250, 1251, 1252, 1253, 1254, 1255, 1256, 1258, 1261, 1274, 1285, 1286, 1287, 1288, 1289, 1290, 1295, 1301, 1305, 1330, 1343, 1350, 1351, 1386, 1387, 1389, 1405, 1406, 1422, 1423, 1425, 1427, 1434, 1435, 1443, 1444, 1445, 1446, 1447, 1448, 1450, 1457, 1458, 1459, 1460, 1498, 1499, 1500, 1503, 1504, 1505, 1520, 1525, 1526, 1527, 1528, 1533, 1534, 1535, 1537, 1538, 1539, 1553, 1572, 1573, 1574, 1575, 1576, 1577, 1578, 1580, 1599, 1603, 1616, 1622, 1623, 1624, 1628, 1629, 1637, 1650, 1651, 1652, 1653, 1654, 1655, 1658, 1674, 1675, 1679, 1680, 1686, 1688, 1697, 1698, 1703, 1724, 1725, 1730, 1733, 1795, 1815, 1824, 1825, 1834, 1838, 1848, 1855, 1893, 1896, 1897, 1908, 1910, 1911, 1914, 1927, 1945, 1959, 1977, 1995, 1996, 1997, 1998, 1999, 2004, 2005, 2014, 2015, 2016, 2025, 2026, 2031, 2074, 2086, 2092, 2101, 2118, 2125, 2134, 2149 | DOCUMENTATION ONLY | 历史审查、已删除字段说明和清理回执；保留时间线，不代表当前执行代码 |
+| `packages/keyflow-contract/src/schemas/app.schema.ts` | 28, 29 | VALID WEB-ONLY | Web Registry metadata，未进入 Profile schema |
+| `packages/keyflow-contract/src/app.ts` | 24, 25 | VALID WEB-ONLY | Web Registry metadata，未进入 Profile schema |
+| `packages/keyflow-contract/src/schemas/command.schema.ts` | 13, 14 | VALID WEB-ONLY | Web Registry metadata，未进入 Profile schema |
+| `tests/model-tests.ts` | 24, 28, 31, 34, 43, 48 | TEST/FIXTURE ONLY | 编译输入及拒绝旧 slot 字段的负例 |
+| `runtime/src-tauri/src/main.rs` | 23, 89, 91, 92, 94, 95, 108, 112, 124, 126, 184, 230, 264, 351, 355, 361, 362, 366, 445, 446, 447, 450 | VALID RUNTIME-LOCAL | 实体输入 BindingStore、内存索引及 bindings.json；不是 Profile.bindings |
+| `runtime/src-tauri/src/binding.rs` | 10, 18, 21 | VALID RUNTIME-LOCAL | 实体输入 BindingStore、内存索引及 bindings.json；不是 Profile.bindings |
+
+
+分类结论：
+
+- INVALID LEGACY RESIDUE：当前业务源码和当前 fixture 中没有检出旧 Profile slot/bindings/sourceBindingId 结构。
+- KEY_1 仅在 tests/model-tests.ts:43 作为拒绝样例及历史文档出现；KEY_2～KEY_8、KEY_SLOTS、KeySlot、KeyBinding、sourceBindingId 没有当前实现引用。
+- appId/commandId 没有进入 Profile v2 schema、Rust protocol DTO 或 Runtime execution。
+- packages/keyflow-contract 中 AppDefinition/CommandDefinition 的 timestamps 是 Web Registry 模型，不是 Profile 字段。包名“contract”不等于其所有导出都属于 portable Protocol。
+- 扩展检索 system-builtin-：repository.rs:45,48 为 VALID RUNTIME-LOCAL seed/id 操作；repository.rs:93 为 TEST/FIXTURE ONLY；runtime/src/main.ts:26 为 VALID RUNTIME-LOCAL UI 图标派生。fixture JSON 中不存在 system ID。
+- 扩展检索 RuntimeAction/RuntimeExecution/ExecutableAction/CompiledAction/ActionDTO/ExecutionDTO/ProfileBinding/sourceProfile/LEGACY_SLOT_MAP/migrateLegacyProfile：当前 runtime、src、packages 无命中。
+- 文档旧模型内容保留历史上下文，不应当作当前协议使用。
+
+## 3. Web Authoring Path
+
+实际持久化数据：
+
+```ts
+// keyflow.profileDrafts
+{ drafts: ProfileDraft[] }
+
+// ProfileDraft
+{ localId: string; name: string; description?: string; actions: AuthoringAction[] }
+
+// AuthoringAction
+{ type: "OPEN_APP"; appId: string }
+| { type: "COMMAND"; commandId: string }
+```
+
+appRegistry 与 commandRegistry 是两个独立 store/storage key，不嵌入 keyflow.profileDrafts。WebAuthoringState 类型本身只有 drafts，不是上一阶段目标示例中的三个字段同一对象；职责仍分离。
+
+1. profileStore.ts:loadAuthoringState/persist 使用 authoring strict schema；draft 不接受 executions、name 快照或 slot。
+2. Registry 更新通过 upsert 生成新数组；ExportPage 订阅 apps/commands/drafts。compileProfileDraft 每次按当下传入数组 lookup。
+3. 临时实测把 COPY 的 macos keys 从 META+C 改为 META+V，同一 draft 重编译得到 META+V，第一次编译结果仍为 META+C。没有 draft 执行缓存。
+4. 正式路径唯一：ExportPage → downloadProfiles → prepareProfileExport → compileProfileDrafts → compileProfileDraft → profileSchema.parse → JSON array/Blob。
+5. ExportPage 的预览同样调用 prepareProfileExport，不是第二个协议构造路径。
+6. src/pages 没有直接构造 portable Action/Execution。CommandEditor 与 src/data/commands.ts 构造 SEND_HOTKEY 是合法 Registry authoring，不是导出旁路。
+7. src 中没有 keyflow.currentProfile、migrateLegacyProfile 或 v1.2 fallback。新 drafts key 无效时返回空 drafts；Registry 无效时回退各自初始 Registry，不读取旧 Profile。
+8. 没有固定六项限制；编号从数组 index 派生。
+
+## 4. Profile v2 Protocol
+
+实际 TypeScript（packages/keyflow-contract/src/profile.ts 等）：
+
+```ts
+interface Profile {
+  version: string;
+  name: string;
+  description?: string;
+  actions: Action[];
+}
+type Action =
+  | { type: "OPEN_APP"; executions: {
+      windows?: LaunchAppExecution; macos?: LaunchAppExecution;
+    } }
+  | { type: "COMMAND"; executions: {
+      windows?: SendHotkeyExecution; macos?: SendHotkeyExecution;
+    } };
+interface LaunchAppExecution {
+  type: "LAUNCH_APP";
+  executableNames?: string[];
+  aliases?: string[];
+  bundleIds?: string[];
+  appNames?: string[];
+  knownPaths?: string[];
+}
+interface SendHotkeyExecution {
+  type: "SEND_HOTKEY";
+  keys: KeyCode[];
+}
+```
+
+重要纠正：实际 interface.version 是 string，并非上一轮聊天回执展示的字面值类型；实际 Zod Schema 使用 z.literal("2.0")。这不导致正式 compile/import 接受其他版本，但应区分类型与运行时约束。
+
+Schema shape：所有对象 strict；name trim 后非空；description 若存在必须字符串且 trim 后非空；actions 至少一项；executions 仅 windows/macos 且至少一项；OPEN_APP 对应 LAUNCH_APP，COMMAND 对应 SEND_HOTKEY；keys 来自 KEY_CODES 且非空不重复；每个 locator 字符串 trim 后非空，且至少一个 locator 数组非空。
+
+协议数据不依赖 App Registry、Command Registry、localId、RuntimeProfileId、slot 或外部 lookup table。操作系统实际是否安装应用/授权输入仍属执行环境，不是 Web Registry 依赖。
+
+## 5. TS / Rust Validation Parity
+
+**不完全一致。** 实验使用相同 21 个 JSON，分别送入 Zod、Rust Profile::from_json 和正式文件导入所用 Profile::many_from_json。后两者本次结果一致。
+
+| 输入类别 | Zod | Rust 两条 parser |
+|---|---|---|
+| 手写 macOS-only Copy | 接受 | 接受 |
+| 未知 Profile / Action / Execution 字段（3 例） | 拒绝 | 拒绝 |
+| Profile 的 appId / commandId / slot / bindings / id / createdAt / updatedAt（7 例） | 拒绝 | 拒绝 |
+| Action 的 appId / commandId（2 例） | 拒绝 | 拒绝 |
+| version=1.2 | 拒绝 | 拒绝 |
+| 未知平台 linux | 拒绝 | 拒绝 |
+| OPEN_APP + SEND_HOTKEY | 拒绝 | 拒绝 |
+| description="" / windows=null / actions=[]（3 例） | 拒绝 | 拒绝 |
+| description=null | 拒绝 | **接受** |
+| LAUNCH_APP appNames=["Chrome",""] | 拒绝 | **接受** |
+
+反向 COMMAND + LAUNCH_APP 由现有 Rust mismatch test 通过证明拒绝；TS commandActionSchema 明确只接受 sendHotkeyExecutionSchema。
+
+差异原因：
+
+- profile.rs:22 的 Option<String> 将显式 null 反序列化为 None；validate 无法分辨 null 和缺省。
+- profile.rs:89 只要求所有 locator 中“至少一个不是空白”；Zod 要求“每个元素非空”再要求有一个非空数组。
+- 另外 Zod 对 name/description/locator 执行 trim 并返回规范化值，Rust 只用 trim 判断而保留原字符串。这是值规范化差异，不等同于本次两项接受/拒绝差异；尤其 locator 前后空格可能影响实际匹配。
+
+## 6. Runtime Internal Model
+
+持久化 Rust RuntimeProfile 的全部字段（repository.rs:13）：
+
+```text
+id: String
+profile: Profile
+local_name_override: Option<String>
+icon_id: Option<String>
+source: ProfileSource
+```
+
+serde 输出 localNameOverride/iconId。没有 name、description、createdAt、sourceBindingId、slot、actions copy、execution copy。
+
+repository.rs:25 的 display_name = override.unwrap_or(profile.name)。main.rs:262-263 生成视图时读取 display_name 和 profile.description。BindingStore 独立保存 runtimeProfileId/physicalInput；Repository Vec 顺序即本地排列顺序。
+
+runtime/src/types.ts:6 仍有名为 RuntimeProfile 的前端类型，字段是 id/name/description/physicalInput/actionHotkey/iconId/source。它实际上对应 Rust RuntimeProfileView 的派生 UI snapshot，不持久化，也不参与执行；不是第二套领域模型，但同名容易误读。
+
+反向导出：本地字段确实隔离在 wrapper 外，取 profile 无需剥离 id/icon/Binding。然而“取 profile 直接 Serialize 后就是合法 v2 JSON”目前不成立。对没有 description 的合法手写 Profile，serde_json::to_value 输出 description:null；Zod 实测拒绝。LaunchApp 缺省数组序列化成 [] 本身仍合法，但可选 description 的 null 已阻断自然 round-trip。不实现 export，只记录缺陷。
+
+## 7. Runtime Import Path
+
+```text
+load_profile(path)
+→ Profile::many_from_file
+→ many_from_json
+→ serde object 或 Vec<Profile>
+→ 每个 Profile.validate()
+→ import_profiles
+→ 每个 Profile 调用 repository.insert_import 一次
+→ RuntimeProfile { new id, profile, None overrides, External }
+→ repository.save
+```
+
+单对象是一项；数组是逐 Profile 插入，不展开 actions。many_from_json 在返回前校验整个数组。builtin 使用同一 many_from_json，再添加本地 seed metadata。
+
+临时实验确认：单对象接受；两元素 array 返回 2；同一 Profile 连续 insert 两次 count=2 且 id 不同；本地 rename 不改 Profile.name。八个 builtin 插入后共 10 个实例。
+
+另一个持久化边界缺口：repository.rs:32 的 load 只 serde 反序列化，不调用 Profile.validate。临时仓储 JSON 将嵌入 Profile 的 version 改为 1.2，load 仍保留该实例。此问题不是正式外部 import 的 v1.2 兼容分支，但说明重启恢复不是完整验证边界。load 失败时 unwrap_or_default 的静默清空行为也仍存在；这不是迁移。
+
+## 8. Runtime Execution Path
+
+```text
+global shortcut Pressed
+→ dispatch_physical_key
+→ BindingState.physical_to_profile
+→ dispatch_profile(runtimeProfileId)
+→ repository.find(id).profile.executions_for(current_platform())
+→ actions 原数组顺序查 executions
+→ Vec<同一个协议 Execution 类型>
+→ execution::dispatch(&execution)
+→ match Execution::LaunchApp / Execution::SendHotkey
+→ existing executor
+```
+
+证据：main.rs:158-174、179-198，profile.rs:64-65，execution.rs:4-8。
+
+没有 Action.type → executor 分支；Action.type 只参与验证/业务语义。executions_for 会 clone 同一协议 Execution 为一次执行快照，不是 RuntimeExecution 第二套领域结构，也不持久化。它先收集所有当前平台 implementations；任一 Action 缺平台则返回错误，尚未执行任何动作。
+
+macOS-only Profile：两端验证成功、repository 插入成功；executions_for("windows") 明确返回 CURRENT_PLATFORM_NOT_CONFIGURED。该实验模拟平台参数，没有启动 Windows/键盘 executor。
+
+## 9. Builtin Compliance
+
+builtin-profiles.json 为 8 项 JSON array：复制、粘贴、剪切、撤销、重做、全选、保存、查找，分别对应 Copy/Paste/Cut/Undo/Redo/Select All/Save/Find。
+
+实测 8 项全部通过外部同一个 Zod profileSchema；Rust ensure_system_profiles 使用外部同一个 Profile::many_from_json/validate。无特殊宽松 Schema，JSON 无 id/slot/Registry refs。
+
+稳定 id 配对位于 repository.rs:42-49 的 seed metadata，与数组顺序配对。Runtime UI 也读取本地 system ID 派生图标，这是本地 ID 消费，不是协议泄漏。
+
+## 10. Handwritten Profile Test
+
+实际同时通过两端验证并创建 RuntimeProfile 的最小例子：
+
+```json
+{
+  "version": "2.0",
+  "name": "Copy",
+  "actions": [
+    {
+      "type": "COMMAND",
+      "executions": {
+        "macos": {
+          "type": "SEND_HOTKEY",
+          "keys": ["META", "C"]
+        }
+      }
+    }
+  ]
+}
+```
+
+字段来源：
+
+- version：JSON 自带 discriminator，Rust validate 检查。
+- name：JSON 自带默认展示名。
+- description：缺省，不影响执行。
+- actions：JSON 自带动作及顺序。
+- COMMAND：业务意图；校验必须匹配 SEND_HOTKEY。
+- macos：当前平台匹配目标。
+- SEND_HOTKEY：系统 primitive，Executor 唯一分派依据。
+- META/C：JSON 自带完整键值；无需 commandId/Registry 查找。
+
+本轮验证：
+
+- npm run test:models：通过。
+- cargo test --offline：8/8 通过。
+- 临时 21-case TS/Rust parity 实验：发现上节 2 处真实差异。
+- 临时 Rust serialize → Zod：失败，description:null。
+- Registry 最新值编译：通过。
+- 单对象/数组/重复导入/rename/mac-only/8 builtin：通过。
+- 临时持久化非法版本 reload：证实未重新 validate。
+- 未运行 GUI、实际键盘和系统 Executor；未重跑 build/typecheck（本轮项目代码无修改）。
+
+## 11. Findings
+
+### BLOCKER
+
+**B1 — TS/Rust 接受集合不同。** profile.rs:22,75,89。description:null 与 appNames:["Chrome",""] 在 Rust 的正式导入 parser 均被接受，而 Zod 拒绝。不能宣称严格跨端协议一致。
+
+**B2 — Rust portable Profile 序列化不闭合。** profile.rs:17-23。合法省略 description 的 Profile 变成 description:null，不能通过 Zod 回验；Runtime 本地字段虽未泄漏，但自然反向导出能力不满足本轮审查要求。
+
+### SHOULD CLEAN
+
+**S1 — 持久化恢复跳过 Protocol.validate。** repository.rs:32。实测 version=1.2 的嵌入 Profile 能从仓储恢复，外部 import 的拒绝规则不覆盖此路径。不是要求 migration，而是指出验证边界缺失。
+
+**S2 — 回归测试未覆盖 parity/round-trip。** 现有 8 个 Rust tests 与 Web models tests 均通过，但没有捕获 B1/B2；当前绿色测试不能证明这两项验收结论。
+
+**S3 — 回执与命名需要准确。** TypeScript Profile.version 实际是 string，非聊天回执中的字面值类型；Runtime TS 的 RuntimeProfile 实际是 UI View。两者不构成旧领域模型残留，但容易让后续开发误读。
+
+### ACCEPTABLE
+
+- Web-only Registry refs/timestamps；Runtime-local bindings/system IDs。
+- Snapshot 中的 name/description/actionHotkey 为即时派生 View，非持久化 cache。
+- 同一 Execution 类型的临时 clone，没有第二套 Action/Execution 领域模型。
+- 历史审查文档保留旧字段。
+- 单平台合法但实际执行时缺平台报错。
+- Zod trim 与 Rust 保留原文的差异已记录，不能把“语义载荷完整”宣称为逐字节保留。
+
+## 12. Scope Confirmation
+
+没有修改项目代码，没有开发 Factory/Creator，没有修改 Executor/Binding，没有新增 migration。仅追加同主题审查文档；临时实验文件在 /private/tmp，不进入项目实现。没有清理用户 localStorage、Runtime profiles.json、bindings.json 或任何现有开发数据。
+
+本节 supersedes 先前回执中关于“校验一致/直接 portable 序列化已经完整满足”的过度结论；不改动历史章节，不重新讨论目标架构。
+
+## 13. Code Style Follow-up — 2026-09-02
+
+用户指出 App.tsx 等文件长单行不利于阅读和 review。检查当前仓库：没有检出 Prettier、ESLint、Biome、rustfmt 配置或 .editorconfig；根目录及 Runtime package.json 没有 format、format:check 或 lint 脚本，也没有声明对应 JS 格式化/lint 工具依赖。现有 typecheck/build 不能约束排版。
+
+src/App.tsx:9 将整个路由 JSX 写在单行；src/pages/KeyMappingPage.tsx:18 长达 2,567 字符；src/pages/ExportPage.tsx:19 长达 1,662 字符。这是实际可读性问题，而非用户阅读习惯问题。此前清理新增或保留这种写法，也说明交付验证漏掉了格式与人工 review 可读性。
+
+后续应将自动格式化及只检查不写入的格式校验纳入工程命令，并约束 JSX、函数体和分支展开。纯格式化应与协议缺陷修复分开，避免混淆 review。此处仅记录事实与建议，尚未安装工具、添加规则或修改源码。
+
+## 14. Code Formatting Receipt — 2026-09-02
+
+经用户授权完成本轮纯格式化。根 package.json/package-lock.json 新增锁定版本的 Prettier 3.9.6；新增 .prettierrc.json、.prettierignore、.editorconfig 与 runtime/src-tauri/rustfmt.toml。JS/TS/TSX 使用 2 空格、双引号、分号、尾逗号、100 列目标宽度、LF；Rust 使用 rustfmt 的标准 4 空格和 100 列目标宽度。长字符串/模板文本不是强制拆分对象，避免改变字符串语义；100 列不是所有文本的绝对上限。
+
+自动格式化范围：Web src、共享 contract 源码和 fixtures、tests、Runtime TS/CSS、Rust 源码、相关 JSON/HTML/构建配置。App.tsx 的路由树、页面 JSX、store 更新和 Rust 函数已展开。Executor/Binding 源文件本轮也经过 rustfmt，但没有手动修改其执行逻辑或绑定语义。
+
+可重复执行的命令（从仓库根目录）：
+
+- npm run format：格式化 Web/contract/Runtime 前端及 Rust。
+- npm run format:check：只检查上述范围，不写入。
+- format:web / format:web:check、format:rust / format:rust:check：可单独执行。
+
+未批量格式化历史 docs、overview.md、.workbuddy-ai、依赖、锁文件和生成目录；锁文件仅由安装 Prettier 更新。已有未提交模型变更继续保留，因此完整 git diff 同时包含上一轮模型修改，不能把整个工作树差异描述成纯格式化。本轮未修复 post-cleanup audit 的协议缺陷，未添加 ESLint 或 CI/hook。
+
+验证通过：format:check；Studio typecheck/build/test:models；Runtime TypeScript typecheck/build；cargo check --offline；cargo test --offline（8/8）；git diff --check。未运行真实 GUI/键盘 Executor 验证。
+
+# Profile V2 Parity Fix Receipt
+
+日期：2026-09-02。仅修复 Profile v2 的跨语言校验、序列化和 Repository 验证边界；不重构三层模型。以下结果对应当前代码和实际执行测试。
+
+## 1. Root Causes
+
+- optional → null：Rust Option<String> 的默认 Deserialize 接受显式 null，默认 Serialize 将 None 输出为 null；Zod optional 只接受缺省或合法字符串。
+- Rust validation gap：原 locator 校验只要求至少一个非空字符串，没有逐个检查数组元素；Rust trim 与 JavaScript String.trim 的 Unicode 空白字符集合也不同。
+- repository restore bypass：原 load 只反序列化并静默 fallback 到空仓储，没有调用 Profile.validate。
+
+## 2. Rust Validation Changes
+
+profile.rs 保留 Profile/Action/Execution 的 deny_unknown_fields；不修改 Zod 或协议 shape。
+
+- description 使用 default + 自定义 String 反序列化：字段缺省得到 None，字段存在就必须是 String，null/数字被拒绝。
+- name、description、五类 locator 全部使用与 JS String.trim 对应的空白集合；验证后的文本与 Zod 一样进行 trim 规范化。包括 BOM U+FEFF，同时不误删 JS 不 trim 的 U+0085。
+- executableNames、aliases、bundleIds、appNames、knownPaths：每个元素 trim 后必须非空，并且所有数组合计至少一个元素；混合有效元素与空元素也拒绝。
+- version 必须 2.0；name/actions 非空；executions 至少一个且只允许 windows/macos。
+- keys 非空、合法且不重复；Action 与 Execution 的两种组合约束保持不变。
+- required/string/array/null 类型由 serde 严格检查；未知字段仍拒绝。
+
+## 3. Serialization Changes
+
+- description=None 使用 skip_serializing_if = Option::is_none，输出省略字段，不输出 null。
+- windows/macos 在 HashMap 中缺省时本来就没有对应 key；显式 null 不能反序列化为 Execution。
+- 五个 locator arrays 使用 default Vec 和 skip_serializing_if = Vec::is_empty。缺省或合法显式 [] 在输出中省略；非空数组保持内容，绝不输出 null。
+- RuntimeProfile 本地 optional 元数据不属于 Profile v2；没有为本轮顺手改动本地 wrapper shape。
+- 这是合法协议的语义 round-trip，不承诺保留输入 JSON 空白、字段顺序或“显式空数组 vs 缺省”的字面差别。
+
+## 4. Repository Restore
+
+策略：**整次恢复失败并返回明确错误**，不跳过部分记录、不静默清空、不覆盖原文件。
+
+profiles.json → serde RuntimeProfile → 每条 profile.validate() → 全部成功后返回 Repository。文件不存在仍表示首次运行的空仓储；读取错误、解析错误、任一非法 Profile 返回 REPOSITORY_RESTORE_FAILED。main.rs 最小适配 load 的 Result 并向启动错误传播，验证失败时不会继续 seed/save。
+
+insert_import/内部 insert 同样验证再加入；Import=Insert 不变。save 在写文件前验证并规范化待序列化副本，非法 payload 不会覆盖已有文件。未来调用现有插入入口也不能绕过验证；没有创建 Creator/Factory。
+
+新增测试：
+
+- 合法 save/load，保留 id、localNameOverride、iconId 和 portable name。
+- version=1.2 恢复失败。
+- appNames=[""] 恢复失败。
+- 同一矩阵全部 70 个非法 Profile 都不能恢复（仓储同时带合法记录也整体报错），并验证原文件未改变。
+- 非法 Profile 不能 insert；仓储保存前发现非法 Profile 不覆盖已有文件。
+
+## 5. Parity Matrix
+
+共享输入：packages/keyflow-contract/fixtures/profile-v2.parity.json。
+
+| 指标 | 实测结果 |
+|---|---:|
+| total cases | 84 |
+| TS accepted | 14 |
+| TS rejected | 70 |
+| Rust accepted | 14 |
+| Rust rejected | 70 |
+| mismatch count | **0** |
+
+涵盖用户要求的 6 类 valid 和 19 类 invalid；扩展五类 locator 的空元素、混合空元素、空白/null/非字符串、未知平台、未知 type、缺失必填字段、Unicode trim 等。
+
+Rust integration test 使用 #[path] 直接引用生产 profile.rs，不复制 parser。对每个案例同时检查 from_json、many_from_json 的单对象和数组输入。TS 测试运行真实 Rust test，读取该进程输出并与同一 JSON 经实际 Zod 的结果逐项比较，同时检查预期合法性，避免“两边都放宽”也误通过。
+
+执行：npm run test:parity。该矩阵是明确的回归覆盖证据，不是对所有可能 JSON 输入的形式化证明。
+
+## 6. Round-Trip
+
+14 个合法案例逐一执行：
+
+valid JSON → Rust parse/validate → Rust serialize → Zod parse → PASS。
+
+包含 description missing、windows missing、macos missing、五类 locator missing。还比较 Zod 的规范化结果和 Rust 输出（仅将合法空 locator 数组与缺省视为等价），确认字符串 trim 一致。Rust 自身 reparse 也通过。没有通过放宽 Schema 接受 null 来绕过问题。
+
+## 7. Files Changed
+
+仅列本轮，而非整个已有 dirty worktree：
+
+- runtime/src-tauri/src/profile.rs：optional serde、逐项 locator validation、JS trim 对齐与输出省略。
+- runtime/src-tauri/src/repository.rs：restore/insert/save 验证入口及五项仓储回归测试；适配原有测试的 Result。
+- runtime/src-tauri/src/main.rs：传播 load/insert 的 Result；不改执行链和监听。
+- packages/keyflow-contract/fixtures/profile-v2.parity.json：同一组跨端案例。
+- runtime/src-tauri/tests/profile_parity.rs：真实 Rust parser/serializer 矩阵报告。
+- tests/profile-parity.ts：Zod/Rust 逐项比较与跨语言往返验证。
+- package.json：新增 test:parity 命令。
+- docs/web-v1-architecture-and-profile-contract.md：追加本节，保留先前失败审查与修复时间线。
+
+## 8. Verification
+
+Passed：
+
+- Studio npm run typecheck
+- Studio npm run build
+- npm run test:models
+- Runtime npm run typecheck
+- Runtime npm run build
+- cargo check --offline
+- cargo test --offline：13 项主程序测试 + 4 项 integration binary 测试通过（后者包含引用模块的 3 个既有 Profile tests 与 1 个共享矩阵 test）。
+- npm run test:parity：84 cases，mismatch=0，14 Rust → Zod round-trips。
+- 本轮 TS/JSON/package 文件 Prettier check。
+- cargo fmt -- --check。
+- git diff --check。
+
+额外全仓 npm run format:check 未通过：唯一报告为 src/App.tsx 当前四空格缩进，不符合仓库两空格配置。本轮没有改该文件，保留范围外现状，没有为了全仓绿色扩大 Web 修改。
+
+Not run：真实桌面启动、真实键盘和 OS Executor；本轮没有修改这些路径。
+
+## 9. Scope Confirmation
+
+没有修改 Profile shape/version、Web authoring、Action/Execution 分层、RuntimeProfile 本地方向、Binding、Import=Insert、Execution backend/enigo、global shortcut、Pressed/Released、Device Identity、builtin 产品内容、Factory/Creator、Picker/Capture、Workflow/Cloud 或 Migration Framework。
+
+Runtime TS 的 RuntimeProfile View 命名问题继续 DEFER。此前 Post-Cleanup Audit 的 B1/B2 和 restore bypass 已由本节代码与测试证据解决；不删除历史审查，不改变目标架构。

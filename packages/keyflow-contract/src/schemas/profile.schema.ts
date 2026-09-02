@@ -1,35 +1,36 @@
 import { z } from "zod";
-import { KEY_SLOTS } from "../constants";
-import { macOSLaunchAppExecutionSchema, sendHotkeyExecutionSchema, windowsLaunchAppExecutionSchema } from "./execution.schema";
+import { launchAppExecutionSchema, sendHotkeyExecutionSchema } from "./execution.schema.ts";
 
-export const openAppActionSchema = z.object({
-  type: z.literal("OPEN_APP"),
-  appId: z.string().trim().min(1),
-  executions: z.object({ windows: windowsLaunchAppExecutionSchema.optional(), macos: macOSLaunchAppExecutionSchema.optional() }),
-});
+const implementations = <T extends z.ZodType>(schema: T) =>
+  z
+    .object({ windows: schema.optional(), macos: schema.optional() })
+    .strict()
+    .refine((value) => Boolean(value.windows || value.macos), "至少需要一个平台实现");
 
-export const commandActionSchema = z.object({
-  type: z.literal("COMMAND"),
-  commandId: z.string().trim().min(1),
-  name: z.string().trim().min(1),
-  executions: z.object({ windows: sendHotkeyExecutionSchema.optional(), macos: sendHotkeyExecutionSchema.optional() }),
-});
+export const openAppActionSchema = z
+  .object({
+    type: z.literal("OPEN_APP"),
+    executions: implementations(launchAppExecutionSchema),
+  })
+  .strict();
 
-export const actionSchema = z.discriminatedUnion("type", [openAppActionSchema, commandActionSchema]);
+export const commandActionSchema = z
+  .object({
+    type: z.literal("COMMAND"),
+    executions: implementations(sendHotkeyExecutionSchema),
+  })
+  .strict();
 
-export const keyBindingSchema = z.object({
-  id: z.string().trim().min(1),
-  slot: z.enum(KEY_SLOTS),
-  name: z.string().trim().min(1, "功能名称不能为空"),
-  description: z.string().trim().optional(),
-  actions: z.array(actionSchema),
-});
+export const actionSchema = z.discriminatedUnion("type", [
+  openAppActionSchema,
+  commandActionSchema,
+]);
 
-export const profileSchema = z.object({
-  version: z.literal("1.2"),
-  id: z.string().trim().min(1),
-  name: z.string().trim().min(1, "Profile 名称不能为空"),
-  bindings: z.array(keyBindingSchema),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-});
+export const profileSchema = z
+  .object({
+    version: z.literal("2.0"),
+    name: z.string().trim().min(1, "Profile 名称不能为空"),
+    description: z.string().trim().min(1).optional(),
+    actions: z.array(actionSchema).min(1, "Profile 至少需要一个动作"),
+  })
+  .strict();

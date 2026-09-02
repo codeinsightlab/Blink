@@ -1,19 +1,8 @@
-import type { Action } from "./action";
-import type { KeySlot } from "./constants";
-
-export interface KeyBinding {
-  id: string;
-  slot: KeySlot;
-  name: string;
-  description?: string;
-  actions: Action[];
-}
+import type { Action } from "./action.ts";
 
 export interface Profile {
   version: string;
-  id: string;
   name: string;
-  bindings: KeyBinding[];
-  createdAt: string;
-  updatedAt: string;
+  description?: string;
+  actions: Action[];
 }
