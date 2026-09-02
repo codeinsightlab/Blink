@@ -278,7 +278,97 @@ Runtime 没有也不允许建立 `COPY → META+C`、`PASTE → META+V` 等业�
 
 稳定修复不再在执行路径修改全局注册表。`RuntimeCore` 维护只在内存存在的 `suppress_shortcuts_until`：执行 Profile 前开启 500ms 隔离窗口，执行完成后保留 250ms 尾窗；global-shortcut handler 在窗口内直接忽略 Runtime 注入产生的回流事件。Profile 原始 Execution、持久化 BindingState 与注册表均不修改，正常用户输入在极短尾窗后继续由既有 handler 处理。
 
+该“只忽略 handler”方案解决了递归与崩溃，却没有恢复 `SEND_HOTKEY` 的实际效果：只要裸键 `C` 仍在 OS global-shortcut 层注册，Enigo 注入 `META + C` 中的 `C` 仍会被全局注册截获；handler 即使选择忽略，该事件也不会继续传给前台应用。因此“Executor 返回 Ok”仍不能证明复制发生。
+
+最终执行生命周期改为在实体快捷键 `Released` 事件触发，确保触发键已经物理释放；handler 只解析 RuntimeProfile 并使用 `run_on_main_thread` 排队，立即结束自身回调。排队任务在回调栈外安全地撤销全局注册、执行 Profile 原始 Execution、再恢复原 BindingState 注册。这样注入的 `META + C` 没有注册拦截，可以到达前台应用，同时避免在插件 handler 内修改注册表导致退出。
+
 后端 `unbind_profile` 一直同时支持 SYSTEM 与 EXTERNAL RuntimeProfile；此前仅外部项的更多菜单接入了该命令。系统 Tile 现对已绑定项在 Keycap 后显示低权重“解绑”，仍复用相同后端事务：生成 next BindingState、重新注册、持久化，失败时保留 previous state。
+
+### “我的命令”与“系统快捷动作”的执行一致性
+
+两类 RuntimeProfile 的执行入口完全相同：实体键先从同一份 `BindingState.physical_to_profile` 解析为 RuntimeProfile id，再统一进入 `dispatch_profile`；该函数不读取 `ProfileSource`，只按 `source_binding_id` 找到原始 Binding、选择当前平台 Execution，最后交给同一个 `execution::dispatch`。因此 SYSTEM/EXTERNAL 不是两套 Executor，也没有系统命令名称分支。
+
+两者此前表现不同，原因是数据来源和常见 Execution 类型不同，而不是执行框架不同：SYSTEM 由内置 Profile seed，八项当前都是 `SEND_HOTKEY`；EXTERNAL 来自用户导入，可能是 `LAUNCH_APP`、`SEND_HOTKEY` 或有序混合。`LAUNCH_APP` 启动子进程，不会产生键盘事件；`SEND_HOTKEY` 通过 Enigo 注入按键，若注入序列包含当前实体绑定键，才可能回流到 global-shortcut handler。故外部 Profile 若同样配置 `SEND_HOTKEY` 且与实体键重叠，也会遇到相同问题，修复必须放在统一 `dispatch_profile`/handler 边界，不能只对 SYSTEM 特判。
+
+UI 结构确有差异：外部 Profile 使用“我的命令”列表并通过更多菜单管理，SYSTEM 使用 Compact Tile 且不可删除；这只影响展示和管理权限。绑定、重新绑定、解绑现在都调用相同 Tauri command，执行路径不因 UI 分组改变。
+
+### 2026-09-02：本会话 UI 范围越界审查
+
+本会话原始范围是 Keycap、HotkeyFormatter、列表/系统动作视觉和图标库。提交 `1d2e16e` 将 UI 与 Rust 变更混在同一个提交中，其中可由 UI 需求解释的 Rust 变化仅是 `RuntimeSnapshot` 增加只读 `platform`、`actionHotkey`，以及从现有 Profile Execution 提取展示数据；这些变化不应触碰监听或执行生命周期。
+
+实际越界并导致回归的改动包括：
+
+1. 给 `RuntimeCore` 增加 `suppress_shortcuts_until`，在 `dispatch_profile` 写入 500ms/250ms 窗口，并在 `dispatch_physical_key` 改变事件处理逻辑。
+2. 后续未提交改动把 global-shortcut 触发条件从 `Pressed` 改为 `Released`。
+3. 后续未提交改动把原来的同步 `dispatch_profile` 改为 `run_on_main_thread` 调度。
+4. 后续未提交改动又在执行路径增加 `unregister_all → execution::dispatch → register_state`，反复改变全局注册表。
+
+这些都不是 UI 所需改动。最新运行证据为：绑定文件仍有 `system-builtin-copy → C`，诊断日志最后一条是“已释放全局快捷键 C”，之后没有执行完成、失败或恢复注册记录，同时 Runtime 进程已不存在。这把故障边界定位在新增的调度/注册生命周期，而不是 Profile、`SEND_HOTKEY` keys、Enigo 映射或 Keycap UI。
+
+恢复原有正常执行功能的安全回退边界应是：以 `1d2e16e^` 的 `dispatch_profile`、`dispatch_physical_key`、`ShortcutState::Pressed` 和原 `RuntimeCore` 为基线；保留 UI 文件、Lucide、Formatter、Keycap，以及 `RuntimeSnapshot.platform/actionHotkey` 这种只读展示桥接。系统 Tile 的“解绑”只调用既有 `unbind_profile`，可以独立保留。任何关于裸字符全局键与注入快捷键回流的问题，应另立 Runtime 执行层任务、建立可重复端到端测试后处理，不能继续夹带在 UI 任务中试修。
+
+### 2026-09-02：回归修复落地与验证
+
+执行层已按 `1d2e16e^` 精确恢复，不以新实现替代回退：`RuntimeCore` 删除 `suppress_shortcuts_until`；`dispatch_profile` 恢复为读取当前平台 Execution 后同步顺序调用 `execution::dispatch`；`dispatch_physical_key` 恢复为解析绑定、记录事件并直接调用 `dispatch_profile`；handler 恢复 `ShortcutState::Pressed`。执行路径不再包含 suppress/debounce、`run_on_main_thread` 或每次执行时的 `unregister_all/register_state`。注册表生命周期重新只存在于启动/刷新、绑定提交、绑定捕获、暂停/恢复和退出等原有位置。
+
+最终 `main.rs` 相比 `1d2e16e^` 只保留 UI 所需只读差异：`RuntimeProfileView.action_hotkey`、`RuntimeSnapshot.platform`、`current_platform()`、`action_hotkey()`，以及 snapshot 映射。它们只读取已有 Profile Execution，不改变 Profile、RuntimeProfile 持久化、Executor 参数或调度。
+
+验证结果：Rust tests 5/5、TypeScript typecheck、Vite production build 与 `git diff --check` 均通过。真实 Tauri Runtime 从现有 `system-builtin-copy → C` 注册启动；使用系统输入连续触发 C 三次，诊断逐次出现“已收到全局快捷键 C”与“命令执行完成”，进程继续存活且未重新注册。实际窗口确认外部命令列表、系统 Tile、Keycap/HotkeyFormatter、`META + C → ⌘ C` snapshot 展示和系统 Tile 解绑入口均正常保留。该验证证明恢复了基准执行路径与进程稳定性；未读取剪贴板内容，因此不把日志中的 Executor 成功扩张为剪贴板内容级证明。
+
+### 2026-09-02：功能结果闭环补验与验收口径纠正
+
+上一节最初在聊天回执中把“全局快捷键回调发生、`execution::dispatch` 返回成功、Runtime 仍存活”列为 Case 1/2 通过，这是错误的验收口径。上述证据只证明调度链和进程稳定性，不能证明前台应用收到注入组合键，更不能证明复制或粘贴产生了业务结果。对 `SEND_HOTKEY`，完成标准必须检查目标应用最终状态：复制应验证剪贴板内容，粘贴应验证目标输入内容；注册成功和诊断日志只能作为过程证据。
+
+补验开始前读取当前持久化状态，`bindings.json` 为 `{ "bindings": [] }`，因此当时直接按 C 不可能触发任何 RuntimeProfile。测试没有直接改写该文件，而是通过 Runtime UI 的系统 Tile 正常建立 `system-builtin-copy → C` 与 `system-builtin-paste → V`，完成后又通过 UI 解除两项测试绑定，最终文件恢复为空数组。
+
+真实 macOS 端到端结果如下：
+
+1. 复制：TextEdit 写入并全选唯一文本 `KEYFLOW_E2E_COPY_20260902_0852`，先将剪贴板置为不同哨兵值，再仅发送物理键 C。`pbpaste` 最终与选中文本完全一致。
+2. 粘贴：剪贴板预置 `KEYFLOW_E2E_PASTE_20260902_0855`，在空白 TextEdit 文档中仅发送物理键 V。读取前台文档文本后与剪贴板预置值完全一致。
+3. 连续复制：依次使用 `KEYFLOW_REPEAT_COPY_1`、`KEYFLOW_REPEAT_COPY_2`、`KEYFLOW_REPEAT_COPY_3`，每轮都先覆盖剪贴板哨兵、全选目标文本、发送物理键 C，再读取剪贴板；3/3 内容完全一致。
+4. 过程旁证：每次均出现对应的全局快捷键与命令完成诊断，测试结束时 `target/debug/keyflow-runtime` 仍存活；这些记录仅辅助解释执行路径，不代替上述内容断言。
+
+因此，当前代码在本机以明确建立的 C/V 绑定可以完成真实复制和粘贴；用户此前报告的失败不能被“日志成功”否定。当前可确认的状态差异是补验前持久化绑定为空。若用户在 UI 中再次建立绑定后仍失败，后续应记录当次 `bindings.json`、前台应用、选区/焦点、剪贴板前后值和诊断时间点，再定位环境或具体应用差异；不得退回以注册成功作为功能通过。
+
+### 2026-09-02：实体键与输出主键重叠问题
+
+用户在真实键盘测试中确认：复制动作绑定 C 不生效，改绑 F10 后生效。该对照将问题进一步收敛为实体触发键与输出快捷键主键重叠，而不是复制 Profile、`SEND_HOTKEY`、Enigo 或辅助功能权限整体失效。
+
+当前稳定基准的实际时序是 `ShortcutState::Pressed → dispatch_physical_key → dispatch_profile → execution::dispatch`，并且调用是同步的。复制 Execution 随后由 Enigo 依次按下 `META` 和 `C`。当实体绑定也是 C 时，执行发生在原物理 C 尚未释放的窗口内，第二次 C 按下可能不会形成新的有效按键边沿，因此前台应用收不到完整的 `⌘C`；F10 与输出主键 C 不重叠，不存在该冲突。
+
+前一节的自动化使用 `System Events key code` 快速生成完整按下/释放，无法可靠模拟用户持续按住实体键期间触发回调，因此即使剪贴板结果通过，也不能覆盖“物理键保持 + 同键重叠”场景。后续回归矩阵必须拆分为至少两类：非重叠键（如 `F10 → ⌘C`）和重叠键（如 `C → ⌘C`），并以真实键盘保持时序验收。
+
+本轮回归任务明确禁止改变 Pressed/Released 语义、线程模型、suppress/debounce 和 register/unregister 生命周期，因此这里只记录问题，不在 UI 回退中设计修复。若产品要求普通字母键也能映射到包含同一字母的系统快捷键，需要另立执行层任务，先确定允许的触发时机和系统事件策略，再进行端到端验证。
+
+### 2026-09-02：整套 Runtime 恢复到昨日提交
+
+用户确认 2026-09-01 的已提交 Runtime 在真实键盘上不存在 C 绑定复制失败，因而授权以已知可用提交替代继续设计执行层方案。按本地提交时间，昨日最后提交为 `9cfefbb`（2026-09-01 15:52:55，`Update runtime interface`）。整个 `runtime/` 目录已精确恢复到该提交，`git diff 9cfefbb -- runtime` 为空。
+
+这是整套 Runtime 回退，不只是 `main.rs`：今天新增的 `hotkeyFormatter.ts`、`keycap.ts`、`runtimeIcon.ts` 及配套 Runtime UI、Snapshot 类型和前端依赖均随之撤销。审查文档保留，以记录回归时间线和撤销原因。恢复后 `cargo test` 5/5、Runtime TypeScript typecheck、Vite production build、`git diff --check` 均通过，debug 二进制也已重新构建。
+
+尝试停止回退前仍在运行的 Runtime/Vite 进程以启动新构建时，进程终止授权未获批准，因此当前内存实例不能作为 `9cfefbb` 的真实运行证据。用户需要正常退出并重新启动 Runtime 后，再以真实键盘执行 `C → 复制 → 检查剪贴板内容`；在该结果出现前，本节只确认源码与构建恢复，不宣称功能实机通过。
+
+### 2026-09-02：回退范围纠正为仅执行层
+
+用户随后澄清：要求回退的是执行层，Runtime UI 仍须保留今天版本。前一节“整套 Runtime 恢复”的范围理解错误，已立即撤销。最终组合如下：Runtime 前端、依赖和 UI 文件全部恢复为 `1d2e16e`，包括 Keycap、HotkeyFormatter、Lucide/RuntimeIcon、“我的命令”列表、系统 Tile、解绑入口及现有样式；执行层保持 `9cfefbb` 的 `RuntimeCore`、`dispatch_profile`、`dispatch_physical_key`、`ShortcutState::Pressed` 和原注册生命周期。
+
+最终 `git diff 1d2e16e -- runtime` 只剩 `runtime/src-tauri/src/main.rs` 的执行层回退；UI 文件与今天提交完全一致。最终 `main.rs` 相比 `9cfefbb` 只增加 UI 必需的只读 `RuntimeSnapshot.platform`、`RuntimeProfileView.action_hotkey` 及其读取映射，不改变执行语义。`suppress_shortcuts_until`、`run_on_main_thread`、`Released` 和执行期间 unregister/register 均不存在。
+
+纠正后重新执行 `cargo test`（5/5）、Runtime TypeScript typecheck、Vite production build 和 `git diff --check`，全部通过。由于旧 Runtime 内存进程仍未获授权停止，真实键盘结果仍须在用户正常退出并重启新构建后验收。
+
+### 2026-09-02：Pressed / Released 监听历史澄清
+
+提交历史确认：昨日 `9cfefbb` 的 global-shortcut handler 已经是 `event.state() == ShortcutState::Pressed`，今天提交 `1d2e16e` 仍保持 `Pressed`，没有在该提交中改为弹起触发。插件回调本身可以报告按下和弹起状态，但 Runtime 业务条件只处理 `Pressed`，`Released` 事件不会进入 `dispatch_physical_key`。
+
+本会话后续未提交实验曾短暂把条件改为 `ShortcutState::Released`，并伴随 `run_on_main_thread` 和执行期间 unregister/register 尝试；这些都已撤销。当前最终代码再次与昨日版本一致：只在 `Pressed` 执行，没有独立的 key-up 执行逻辑。Runtime UI 用于录入实体绑定的浏览器监听同样只有 `window.addEventListener("keydown", ...)`，没有 `keyup` 绑定提交逻辑。
+
+### 2026-09-02：Pressed 与 Released 执行语义比较
+
+`Pressed` 的优势是响应最快，符合传统快捷键“按下即触发”的体验，也保持昨日已提交行为；但执行发生时实体键仍处于按下状态。当实体键与输出快捷键主键重叠（例如 `C → ⌘C`）时，Enigo 注入的第二次 C 可能没有新的按下边沿。长按还可能产生系统重复 Pressed，若底层上报重复事件，存在重复执行风险。
+
+`Released` 会等实体键物理释放后再注入，因此天然避开 `C → ⌘C` 的同键保持冲突，也通常只对应一次完整敲击；代价是执行延迟等于用户按住时间，长按时命令一直不执行，若系统切换、设备断连或底层丢失 key-up，命令可能不触发。组合实体键还必须明确是在最后一个键弹起还是主键弹起时执行，并验证各平台 global-hotkey 后端的 Released 可靠性。
+
+对于 KeyFlow 当前允许裸字母实体键且系统动作大量输出 `⌘/Ctrl + 同字母` 的产品形态，Released 在同键重叠正确性上更匹配；Pressed 在低延迟和历史兼容上更有优势。但该选择属于执行层产品语义，不能只替换一个枚举后宣称完成：必须用真实键盘覆盖短按、长按、连续触发、组合键、同键重叠、非重叠键和进程存活。当前回归版本仍保持 Pressed，本节只记录方案分析，不修改实现。
 
 ## 2026-08-31：独立 KeyFlow Runtime V0 首轮实现
 
@@ -655,3 +745,13 @@ Deck “看似不能滚动”的根因是 `.main-content` 同时作为 CSS Grid 
 Profile 的来源是分组属性，不是卡片类型。Deck 不再在每张卡片上显示“内置/导入”角标，所有 RuntimeProfile 共用相同卡片骨架、图标位置、更多按钮和绑定区；来源差异只体现在分组标题与系统项不提供删除操作。外部导入分组调整到首屏，系统内置紧随其后。
 
 Deck 内容区顶部新增粘性分组导航，可一键定位“外部导入”或“系统内置”。由于 GUI 使用整块 `innerHTML` 重绘，管理外部、选中卡片和打开菜单前会保存 `grid-scroll.scrollTop`，完成重绘后恢复；因此外部管理不会再自动跳回列表顶部。
+
+## 2026-09-02：实体 C 触发复制失败的执行层审查
+
+审查结论：当前 Runtime 的执行层与“Studio 决定业务、Profile 承载结果、Runtime 忠实展示/绑定/执行”的原则一致。`dispatch_profile` 仅选择 `executions.macos`；复制 Profile 的持久化数据明确是 `SEND_HOTKEY ["META", "C"]`。`to_key` 将 `META` 映射为 `Key::Meta`、`C` 映射为 `Key::Unicode('c')`，不存在以名称“复制”推断或纠正平台快捷键的分支。
+
+当前 app-data 诊断日志多次包含连续的“已收到全局快捷键 C”与“已收到快捷键，命令执行完成”；这证明 C 的 global shortcut 注册、Binding 命中、Profile 查找和 `SEND_HOTKEY` 调用均已进入。该日志的“完成”仅代表 enigo 调用返回，不能证明目标应用已把选区写入剪贴板。审查时 `bindings.json` 已为空，因而不能将该文件当作当前仍生效的 C 绑定证据；上述日志是历史真实运行证据。
+
+“实体 C 绑定复制失败、实体 D/F10 绑定同一复制 Profile 可以成功”的最强解释是触发键与动作终止键的同键竞争：Tauri global shortcut 当前只在 `ShortcutState::Pressed` 时同步 dispatch，实体 C 仍被物理按下时，enigo 随即再投递 `Meta down → C down → C up → Meta up`。macOS 可能将第二个 C down 合并/忽略，或裸 C 已先影响目标应用的选区；D/F10 不与输出 `⌘C` 重叠，因而不存在这一竞争。此结论解释了差异性，不涉及 Profile 的 macOS 解析错误，也不能通过把 Profile 强制改成其他快捷键解决。
+
+最小产品保护应在绑定阶段检测“无修饰实体键”是否等于 `SEND_HOTKEY` 的非修饰终止键，并明确提示该组合不可靠，建议使用 F 键、Macro Pad 键或带修饰键的实体输入。若产品必须可靠支持此组合，则需要平台输入层能力：至少等待源键释放后再注入；若还要阻止裸 C 抵达前台应用，则 macOS 需使用可消费事件的原生 event tap，而不是只依赖 Tauri global shortcut。两者都属于 Input Backend/交互能力升级，不能偷换为 Runtime 对 Profile 业务规则的修正。
