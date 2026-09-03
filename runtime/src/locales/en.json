@@ -192,5 +192,6 @@
   "languageEnglish": "English",
   "toggleApp": "Toggle App",
   "toggleAppHint": "Open or bring the app to the front; hide it when it is already in front.",
-  "togglePrefix": "Toggle "
+  "togglePrefix": "Toggle ",
+  "toggleAppFailed": "Unable to toggle this app. Check its location and system permissions."
 }

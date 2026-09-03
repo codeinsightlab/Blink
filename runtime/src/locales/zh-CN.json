@@ -192,5 +192,6 @@
   "languageEnglish": "English",
   "toggleApp": "快速切换应用",
   "toggleAppHint": "应用不在前台时将其打开或切换到前台；应用已在前台时将其隐藏。",
-  "togglePrefix": "切换 "
+  "togglePrefix": "切换 ",
+  "toggleAppFailed": "无法快速切换此应用，请检查应用位置和系统权限。"
 }

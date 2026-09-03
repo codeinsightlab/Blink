@@ -539,7 +539,9 @@ function menuMarkup() {
 }
 function settingsMarkup(status: string) {
   const event = snapshot?.lastEvent ?? t("noEvents");
-  const result = snapshot?.lastError ? `${t("failedPrefix")}${snapshot.lastError}` : t("noErrors");
+  const result = snapshot?.lastError
+    ? `${t("failedPrefix")}${snapshot.lastError === "TOGGLE_APP_FAILED" ? t("toggleAppFailed") : snapshot.lastError}`
+    : t("noErrors");
   return SettingsView(status, event, result);
 }
 async function confirmDialog() {

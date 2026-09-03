@@ -218,6 +218,9 @@ impl DesktopAppController for MacDesktopAppController {
         if app.activationPolicy() != NSApplicationActivationPolicy::Regular {
             return Err(AppControlError::Unsupported);
         }
+        if app.isHidden() {
+            return Ok(AppState::Hidden);
+        }
         let pid = app.processIdentifier();
         if pid <= 0 {
             return Ok(AppState::Unknown);
@@ -305,6 +308,11 @@ impl DesktopAppController for MacDesktopAppController {
     }
 }
 pub fn toggle(ids: &[String], paths: &[String]) -> Result<(), AppControlError> {
+    // Serialize overlapping toggles, but never cache system visibility.
+    static OPERATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _operation = OPERATION
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     autoreleasepool(|_| {
         eprintln!(
             "toggle_app ax_permission={} platform=macos",
@@ -329,6 +337,14 @@ mod tests {
             let target = MacDesktopAppController::resolve(&[], &[path]).unwrap();
             assert_eq!(target.bundle_id, "dev.blink.toggle-fixture");
             let controller = MacDesktopAppController;
+            let shutdown_deadline = Instant::now() + Duration::from_secs(65);
+            while controller.query_state(&target).unwrap() != AppState::NotRunning {
+                assert!(
+                    Instant::now() < shutdown_deadline,
+                    "previous fixture did not exit"
+                );
+                thread::sleep(Duration::from_millis(200));
+            }
             assert_eq!(
                 controller.query_state(&target).unwrap(),
                 AppState::NotRunning

@@ -70,7 +70,7 @@ pub fn dispatch(bundle_ids: &[String], paths: &[String]) -> Result<(), String> {
         let _ = (bundle_ids, paths);
         Err(AppControlError::Unsupported)
     };
-    result.map_err(|error| { eprintln!("toggle_app target={paths:?} bundle_id={bundle_ids:?} dispatch_error={error:?} platform={}", std::env::consts::OS); "无法快速切换此应用，请检查应用位置和系统权限。".into() })
+    result.map_err(|error| { eprintln!("toggle_app target={paths:?} bundle_id={bundle_ids:?} dispatch_error={error:?} platform={}", std::env::consts::OS); "TOGGLE_APP_FAILED".into() })
 }
 #[cfg(test)]
 mod tests {
@@ -134,6 +134,21 @@ mod tests {
             AppToggleService::toggle(&mock, &target).unwrap();
             assert_eq!(*mock.calls.borrow(), expected);
         }
+    }
+    #[test]
+    fn unknown_reveal_failure_never_conceals() {
+        let mock = Mock {
+            state: AppState::Unknown,
+            calls: RefCell::default(),
+            fail_launch: false,
+            fail_reveal: true,
+        };
+        let target = AppTarget {
+            bundle_id: "test.app".into(),
+            path: None,
+        };
+        assert!(AppToggleService::toggle(&mock, &target).is_err());
+        assert_eq!(*mock.calls.borrow(), vec!["query", "reveal"]);
     }
     #[test]
     fn launch_failure_stops_and_delayed_window_is_degraded_success() {
