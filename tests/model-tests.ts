@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { profileSchema, type AppDefinition, type CommandDefinition } from "@keyflow/contract";
+import { profileSchema, type AppDefinition, type CommandDefinition } from "@blink/contract";
 import { compileProfileDraft } from "../src/services/profileCompiler.ts";
 import { profileVersionLabel } from "../src/services/exportService.ts";
 

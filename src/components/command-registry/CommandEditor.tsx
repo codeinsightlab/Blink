@@ -5,7 +5,7 @@ import {
   commandDefinitionSchema,
   type CommandDefinition,
   type KeyCode,
-} from "@keyflow/contract";
+} from "@blink/contract";
 
 const empty = (): CommandDefinition => ({
   id: "",

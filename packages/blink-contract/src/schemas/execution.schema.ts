@@ -66,7 +66,34 @@ export const openFolderExecutionSchema = z
 export const runScriptExecutionSchema = z
   .object({ type: z.literal("RUN_SCRIPT"), path: targetPath })
   .strict();
+export const toggleAppExecutionSchema = z
+  .object({
+    type: z.literal("TOGGLE_APP"),
+    bundleIds: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .refine((s) => s === s.trim() && !/[\u0000-\u001f\u007f]/.test(s)),
+      )
+      .max(1)
+      .optional(),
+    knownPaths: z
+      .array(
+        z
+          .string()
+          .refine(
+            (s) => s.startsWith("/") && /\.app$/i.test(s) && !/[\u0000-\u001f\u007f]/.test(s),
+          ),
+      )
+      .max(1)
+      .optional(),
+  })
+  .strict()
+  .refine((e) => Boolean(e.bundleIds?.length || e.knownPaths?.length), "请选择 macOS 应用");
+
 export const executionSchema = z.union([
+  toggleAppExecutionSchema,
   launchAppExecutionSchema,
   sendHotkeyExecutionSchema,
   openUrlExecutionSchema,

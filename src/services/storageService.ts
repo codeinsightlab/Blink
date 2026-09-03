@@ -1,7 +1,7 @@
 export const STORAGE_KEYS = {
-  drafts: "keyflow.profileDrafts",
-  apps: "keyflow.appRegistry",
-  commands: "keyflow.commandRegistry",
+  drafts: "blink.profileDrafts",
+  apps: "blink.appRegistry",
+  commands: "blink.commandRegistry",
 } as const;
 
 export function readStorage(key: string): unknown {

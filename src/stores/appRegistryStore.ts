@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import initialApps from "../data/apps.json";
-import { appDefinitionSchema, type AppDefinition } from "@keyflow/contract";
+import { appDefinitionSchema, type AppDefinition } from "@blink/contract";
 import { readStorage, STORAGE_KEYS, writeStorage } from "../services/storageService";
 
 const categoryTranslations: Record<string, string> = {

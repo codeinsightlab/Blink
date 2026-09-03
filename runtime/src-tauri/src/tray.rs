@@ -48,7 +48,7 @@ pub fn set_ui_language(app: AppHandle, language: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     controls
         .quit_item
-        .set_text(text(english, "quitKeyflow"))
+        .set_text(text(english, "quitBlink"))
         .map_err(|e| e.to_string())?;
     let status = app
         .state::<crate::SharedRuntime>()
@@ -69,8 +69,7 @@ pub fn install(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let toggle_item =
         MenuItemBuilder::with_id("toggle-listener", text(false, "pauseListening")).build(app)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let quit_item =
-        MenuItemBuilder::with_id("quit-keyflow", text(false, "quitKeyflow")).build(app)?;
+    let quit_item = MenuItemBuilder::with_id("quit-blink", text(false, "quitBlink")).build(app)?;
     let menu = MenuBuilder::new(app)
         .items(&[
             &status_item,
@@ -81,9 +80,9 @@ pub fn install(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         ])
         .build()?;
 
-    let tray_icon = TrayIconBuilder::with_id("keyflow-tray")
-        .icon(app.default_window_icon().ok_or("缺少默认窗口图标")?.clone())
-        .tooltip("KeyFlow Runtime")
+    let tray_icon = TrayIconBuilder::with_id("blink-tray")
+        .icon(tauri::include_image!("icons/32x32.png"))
+        .tooltip("Blink")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -93,8 +92,8 @@ pub fn install(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             "toggle-listener" => {
                 let _ = toggle_listener(app);
             }
-            "quit-keyflow" => {
-                crate::quit_keyflow(app);
+            "quit-blink" => {
+                crate::quit_blink(app);
             }
             _ => {}
         })
@@ -149,7 +148,7 @@ mod tests {
     fn tray_uses_shared_complete_locale_resources() {
         for key in [
             "showWindow",
-            "quitKeyflow",
+            "quitBlink",
             "listening",
             "paused",
             "attention",

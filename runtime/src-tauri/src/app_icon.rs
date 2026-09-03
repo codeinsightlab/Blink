@@ -47,7 +47,9 @@ fn cache_path(dir: &Path, id: &str) -> Option<PathBuf> {
 
 pub fn target_changed(previous: &Profile, updated: &Profile, platform: &str) -> bool {
     let app_target = |profile: &Profile| {
-        let [Action::OpenApp { executions }] = profile.actions.as_slice() else {
+        let [Action::OpenApp { executions } | Action::ToggleApp { executions }] =
+            profile.actions.as_slice()
+        else {
             return None;
         };
         serde_json::to_value(executions.get(platform)?).ok()
@@ -115,10 +117,14 @@ pub fn persist_edit(
 }
 
 pub fn create(dir: &Path, profile: &Profile, platform: &str) -> Option<String> {
-    let [Action::OpenApp { executions }] = profile.actions.as_slice() else {
+    let [Action::OpenApp { executions } | Action::ToggleApp { executions }] =
+        profile.actions.as_slice()
+    else {
         return None;
     };
-    let Execution::LaunchApp { known_paths, .. } = executions.get(platform)? else {
+    let (Execution::LaunchApp { known_paths, .. } | Execution::ToggleApp { known_paths, .. }) =
+        executions.get(platform)?
+    else {
         return None;
     };
     let path = Path::new(known_paths.first()?);
@@ -273,7 +279,7 @@ mod tests {
         assert!(extract(Path::new("/missing/application.app")).is_none());
         assert!(extract(Path::new(r"C:\missing\application.exe")).is_none());
         let profile = Profile::from_json(include_str!(
-            "../../../packages/keyflow-contract/fixtures/profile-v2.0.example.json"
+            "../../../packages/blink-contract/fixtures/profile-v2.0.example.json"
         ))
         .unwrap();
         let mut repo = ProfileRepository::default();
@@ -283,7 +289,7 @@ mod tests {
     #[test]
     fn damaged_executable_returns_no_icon() {
         let path =
-            std::env::temp_dir().join(format!("keyflow-bad-icon-{}.exe", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("blink-bad-icon-{}.exe", uuid::Uuid::new_v4()));
         fs::write(&path, b"not a PE executable").unwrap();
         assert!(extract(&path).is_none());
         fs::remove_file(path).unwrap();
@@ -292,7 +298,7 @@ mod tests {
     #[test]
     #[ignore = "Reads installed macOS application icons; run explicitly"]
     fn installed_macos_icons() {
-        let dir = std::env::temp_dir().join("keyflow-native-icon-verification");
+        let dir = std::env::temp_dir().join("blink-native-icon-verification");
         fs::create_dir_all(&dir).unwrap();
         for (name, path) in [
             ("calculator", "/System/Applications/Calculator.app"),
@@ -315,7 +321,7 @@ mod tests {
     #[test]
     #[ignore = "Reads installed macOS apps to verify real icon replacement"]
     fn native_macos_reselect_lifecycle() {
-        let dir = std::env::temp_dir().join(format!("keyflow-reselect-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("blink-reselect-{}", uuid::Uuid::new_v4()));
         let file = dir.join("profiles.json");
         let profile = |path: &str| {
             Profile::from_json(&serde_json::json!({"version":"2.0","name":"App","actions":[{"type":"OPEN_APP","executions":{"macos":{"type":"LAUNCH_APP","knownPaths":[path]}}}]}).to_string()).unwrap()
@@ -351,11 +357,11 @@ mod tests {
     }
     #[test]
     fn cache_persistence_ownership_and_rollback_cleanup() {
-        let dir = std::env::temp_dir().join(format!("keyflow-icon-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("blink-icon-test-{}", uuid::Uuid::new_v4()));
         let id = store(&dir, &png_bytes()).unwrap();
         let mut repo = ProfileRepository::default();
         let profile = Profile::from_json(include_str!(
-            "../../../packages/keyflow-contract/fixtures/profile-v2.0.example.json"
+            "../../../packages/blink-contract/fixtures/profile-v2.0.example.json"
         ))
         .unwrap();
         let item = repo.insert_import(profile).unwrap();
@@ -385,10 +391,10 @@ mod tests {
     }
     #[test]
     fn creator_success_failure_and_failed_save() {
-        let dir = std::env::temp_dir().join(format!("keyflow-icon-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("blink-icon-test-{}", uuid::Uuid::new_v4()));
         let mut repo = ProfileRepository::default();
         let profile = Profile::from_json(include_str!(
-            "../../../packages/keyflow-contract/fixtures/profile-v2.0.example.json"
+            "../../../packages/blink-contract/fixtures/profile-v2.0.example.json"
         ))
         .unwrap();
         let icon = store(&dir, &png_bytes()).unwrap();
@@ -421,7 +427,7 @@ mod tests {
     }
     #[test]
     fn missing_platform_multi_action_and_bad_target_do_not_extract() {
-        let dir = std::env::temp_dir().join(format!("keyflow-icon-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("blink-icon-test-{}", uuid::Uuid::new_v4()));
         let profile = Profile::from_json(r#"{"version":"2.0","name":"Missing","actions":[{"type":"OPEN_APP","executions":{"macos":{"type":"LAUNCH_APP","knownPaths":["/missing.app"]},"windows":{"type":"LAUNCH_APP","knownPaths":["C:\\missing.exe"]}}}]}"#).unwrap();
         for platform in ["macos", "windows"] {
             let mut repo = ProfileRepository::default();
@@ -462,7 +468,7 @@ mod tests {
     }
     #[test]
     fn edit_icon_lifecycle_and_failed_commit_are_atomic() {
-        let dir = std::env::temp_dir().join(format!("keyflow-edit-icon-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("blink-edit-icon-{}", uuid::Uuid::new_v4()));
         let file = dir.join("profiles.json");
         let app = |name: &str| {
             Profile::from_json(&format!(r#"{{"version":"2.0","name":"App","actions":[{{"type":"OPEN_APP","executions":{{"macos":{{"type":"LAUNCH_APP","knownPaths":["/Applications/{name}.app"]}}}}}}]}}"#)).unwrap()

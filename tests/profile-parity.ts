@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { profileSchema } from "@keyflow/contract";
+import { profileSchema } from "@blink/contract";
 
 interface Case {
   id: string;
@@ -17,7 +17,7 @@ interface RustResult {
 
 const cases: Case[] = JSON.parse(
   readFileSync(
-    new URL("../packages/keyflow-contract/fixtures/profile-v2.parity.json", import.meta.url),
+    new URL("../packages/blink-contract/fixtures/profile-v2.parity.json", import.meta.url),
     "utf8",
   ),
 );

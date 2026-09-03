@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "KeyFlow Runtime desktop permissions",
+  "description": "Blink Runtime desktop permissions",
   "windows": ["main"],
   "permissions": [
     "core:default",

@@ -5,7 +5,7 @@ import { readPreference, writePreference } from "./uiPreferences.ts";
 export type Language = "zh-CN" | "en";
 export type MessageKey = keyof typeof zh;
 const resources: Record<Language, Record<MessageKey, string>> = { "zh-CN": zh, en };
-const LANGUAGE_KEY = "keyflow.runtime.language";
+const LANGUAGE_KEY = "blink.runtime.language";
 let language: Language = readPreference(LANGUAGE_KEY) === "en" ? "en" : "zh-CN";
 export function getLanguage(): Language {
   return language;

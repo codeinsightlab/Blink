@@ -22,7 +22,7 @@ assert.deepEqual(Object.keys(zh).sort(), Object.keys(en).sort());
 assert.equal(locale.getLanguage(), "zh-CN");
 assert.equal(locale.setLanguage("en"), true);
 assert.equal(locale.t("newCommand"), "New command");
-assert.equal(storage.get("keyflow.runtime.language"), "en");
+assert.equal(storage.get("blink.runtime.language"), "en");
 assert.equal(locale.builtinText("copy", "复制"), "Copy");
 assert.equal(locale.builtinText("copy", "My Copy"), "My Copy");
 const ids = ["a", "b", "c"];
@@ -43,9 +43,9 @@ assert.deepEqual(
   orderedCommands([{ id: "b" }, { id: "d" }, { id: "a" }, { id: "e" }]).map((x) => x.id),
   ["a", "b", "d", "e"],
 );
-storage.set("keyflow.runtime.commandOrder", "not json");
+storage.set("blink.runtime.commandOrder", "not json");
 assert.deepEqual(readOrder(), []);
-storage.set("keyflow.runtime.commandOrder", '["a",1,"a","b"]');
+storage.set("blink.runtime.commandOrder", '["a",1,"a","b"]');
 assert.deepEqual(readOrder(), ["a", "b"]);
 Object.defineProperty(globalThis, "localStorage", {
   get() {

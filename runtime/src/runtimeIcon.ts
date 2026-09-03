@@ -1,4 +1,11 @@
 import {
+  Activity,
+  ChevronDown,
+  CircleHelp,
+  FileText,
+  Keyboard,
+  LogOut,
+  Mail,
   AppWindow,
   ClipboardPaste,
   Command,
@@ -10,7 +17,6 @@ import {
   Info,
   LayoutGrid,
   Link,
-  PanelsTopLeft,
   Pencil,
   Plus,
   Redo2,
@@ -25,8 +31,16 @@ import {
   createElement,
   type IconNode,
 } from "lucide";
+import brandIcon from "../src-tauri/icons/icon.svg";
 
 export type RuntimeIconName =
+  | "activity"
+  | "chevron-down"
+  | "help"
+  | "result"
+  | "keyboard"
+  | "quit"
+  | "mail"
   | "plus"
   | "brand"
   | "deck"
@@ -51,9 +65,15 @@ export type RuntimeIconName =
   | "info"
   | "external";
 
-const ICONS: Record<RuntimeIconName, IconNode> = {
+const ICONS: Record<Exclude<RuntimeIconName, "brand">, IconNode> = {
+  activity: Activity,
+  "chevron-down": ChevronDown,
+  help: CircleHelp,
+  result: FileText,
+  keyboard: Keyboard,
+  quit: LogOut,
+  mail: Mail,
   plus: Plus,
-  brand: PanelsTopLeft,
   deck: LayoutGrid,
   settings: Settings,
   folder: FolderOpen,
@@ -78,6 +98,8 @@ const ICONS: Record<RuntimeIconName, IconNode> = {
 };
 
 export function RuntimeIcon(name: RuntimeIconName, className = "") {
+  if (name === "brand")
+    return `<img class="runtime-brand-icon" src="${brandIcon}" alt="Blink" draggable="false" />`;
   const svg = createElement(ICONS[name]);
   svg.setAttribute("class", `runtime-icon ${className}`.trim());
   svg.setAttribute("aria-hidden", "true");

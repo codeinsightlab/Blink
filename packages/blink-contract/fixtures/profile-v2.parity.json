@@ -11,11 +11,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -34,7 +40,10 @@
           "executions": {
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -53,7 +62,9 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"]
+              "executableNames": [
+                "chrome.exe"
+              ]
             }
           }
         }
@@ -72,11 +83,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -96,11 +113,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         },
@@ -109,7 +132,9 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"]
+              "executableNames": [
+                "chrome.exe"
+              ]
             }
           }
         }
@@ -128,7 +153,9 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": [" ﻿chrome.exe \n"]
+              "executableNames": [
+                " ﻿chrome.exe \n"
+              ]
             }
           }
         }
@@ -148,7 +175,9 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
+              "executableNames": [
+                "chrome.exe"
+              ],
               "aliases": []
             }
           }
@@ -168,11 +197,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -191,7 +226,9 @@
           "executions": {
             "macos": {
               "type": "LAUNCH_APP",
-              "bundleIds": ["com.google.Chrome"]
+              "bundleIds": [
+                "com.google.Chrome"
+              ]
             }
           }
         }
@@ -210,11 +247,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -233,11 +276,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -256,11 +305,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -279,11 +334,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -302,11 +363,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -325,11 +392,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -348,11 +421,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -372,11 +451,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -396,11 +481,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -420,11 +511,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -444,11 +541,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -467,11 +570,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -489,11 +598,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -520,7 +635,9 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": [""]
+              "executableNames": [
+                ""
+              ]
             }
           }
         }
@@ -539,7 +656,10 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["Chrome", ""]
+              "executableNames": [
+                "Chrome",
+                ""
+              ]
             }
           }
         }
@@ -558,7 +678,9 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": [" ﻿ "]
+              "executableNames": [
+                " ﻿ "
+              ]
             }
           }
         }
@@ -596,7 +718,9 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": [1]
+              "executableNames": [
+                1
+              ]
             }
           }
         }
@@ -614,7 +738,9 @@
           "type": "OPEN_APP",
           "executions": {
             "windows": {
-              "executableNames": [" target "],
+              "executableNames": [
+                " target "
+              ],
               "type": "LAUNCH_APP"
             }
           }
@@ -634,8 +760,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "aliases": [""]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "aliases": [
+                ""
+              ]
             }
           }
         }
@@ -654,8 +784,13 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "aliases": ["Chrome", ""]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "aliases": [
+                "Chrome",
+                ""
+              ]
             }
           }
         }
@@ -674,8 +809,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "aliases": [" ﻿ "]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "aliases": [
+                " ﻿ "
+              ]
             }
           }
         }
@@ -694,7 +833,9 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
+              "executableNames": [
+                "chrome.exe"
+              ],
               "aliases": null
             }
           }
@@ -714,8 +855,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "aliases": [1]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "aliases": [
+                1
+              ]
             }
           }
         }
@@ -733,7 +878,9 @@
           "type": "OPEN_APP",
           "executions": {
             "windows": {
-              "aliases": [" target "],
+              "aliases": [
+                " target "
+              ],
               "type": "LAUNCH_APP"
             }
           }
@@ -753,8 +900,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "bundleIds": [""]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "bundleIds": [
+                ""
+              ]
             }
           }
         }
@@ -773,8 +924,13 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "bundleIds": ["Chrome", ""]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "bundleIds": [
+                "Chrome",
+                ""
+              ]
             }
           }
         }
@@ -793,8 +949,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "bundleIds": [" ﻿ "]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "bundleIds": [
+                " ﻿ "
+              ]
             }
           }
         }
@@ -813,7 +973,9 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
+              "executableNames": [
+                "chrome.exe"
+              ],
               "bundleIds": null
             }
           }
@@ -833,8 +995,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "bundleIds": [1]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "bundleIds": [
+                1
+              ]
             }
           }
         }
@@ -852,7 +1018,9 @@
           "type": "OPEN_APP",
           "executions": {
             "windows": {
-              "bundleIds": [" target "],
+              "bundleIds": [
+                " target "
+              ],
               "type": "LAUNCH_APP"
             }
           }
@@ -872,8 +1040,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "appNames": [""]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "appNames": [
+                ""
+              ]
             }
           }
         }
@@ -892,8 +1064,13 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "appNames": ["Chrome", ""]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "appNames": [
+                "Chrome",
+                ""
+              ]
             }
           }
         }
@@ -912,8 +1089,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "appNames": [" ﻿ "]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "appNames": [
+                " ﻿ "
+              ]
             }
           }
         }
@@ -932,7 +1113,9 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
+              "executableNames": [
+                "chrome.exe"
+              ],
               "appNames": null
             }
           }
@@ -952,8 +1135,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "appNames": [1]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "appNames": [
+                1
+              ]
             }
           }
         }
@@ -971,7 +1158,9 @@
           "type": "OPEN_APP",
           "executions": {
             "windows": {
-              "appNames": [" target "],
+              "appNames": [
+                " target "
+              ],
               "type": "LAUNCH_APP"
             }
           }
@@ -991,8 +1180,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "knownPaths": [""]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "knownPaths": [
+                ""
+              ]
             }
           }
         }
@@ -1011,8 +1204,13 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "knownPaths": ["Chrome", ""]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "knownPaths": [
+                "Chrome",
+                ""
+              ]
             }
           }
         }
@@ -1031,8 +1229,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "knownPaths": [" ﻿ "]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "knownPaths": [
+                " ﻿ "
+              ]
             }
           }
         }
@@ -1051,7 +1253,9 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
+              "executableNames": [
+                "chrome.exe"
+              ],
               "knownPaths": null
             }
           }
@@ -1071,8 +1275,12 @@
           "executions": {
             "windows": {
               "type": "LAUNCH_APP",
-              "executableNames": ["chrome.exe"],
-              "knownPaths": [1]
+              "executableNames": [
+                "chrome.exe"
+              ],
+              "knownPaths": [
+                1
+              ]
             }
           }
         }
@@ -1090,7 +1298,9 @@
           "type": "OPEN_APP",
           "executions": {
             "windows": {
-              "knownPaths": [" target "],
+              "knownPaths": [
+                " target "
+              ],
               "type": "LAUNCH_APP"
             }
           }
@@ -1110,7 +1320,10 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
@@ -1133,11 +1346,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "META"]
+              "keys": [
+                "META",
+                "META"
+              ]
             }
           }
         }
@@ -1156,11 +1375,16 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["F13"]
+              "keys": [
+                "F13"
+              ]
             }
           }
         }
@@ -1179,7 +1403,10 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
@@ -1202,11 +1429,16 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["c"]
+              "keys": [
+                "c"
+              ]
             }
           }
         }
@@ -1225,7 +1457,10 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY"
@@ -1262,7 +1497,10 @@
             "windows": null,
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1281,15 +1519,23 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             },
             "linux": {
               "type": "SEND_HOTKEY",
-              "keys": ["C"]
+              "keys": [
+                "C"
+              ]
             }
           }
         }
@@ -1308,11 +1554,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1331,11 +1583,16 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "LAUNCH_APP",
-              "appNames": ["Chrome"]
+              "appNames": [
+                "Chrome"
+              ]
             }
           }
         }
@@ -1354,11 +1611,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1386,11 +1649,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1409,11 +1678,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "UNKNOWN",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1432,11 +1707,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           },
           "unexpected": true
@@ -1456,11 +1737,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"],
+              "keys": [
+                "META",
+                "C"
+              ],
               "unexpected": true
             }
           }
@@ -1480,11 +1767,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1504,11 +1797,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1528,11 +1827,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1552,11 +1857,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1576,11 +1887,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1600,11 +1917,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1624,11 +1947,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1648,11 +1977,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           }
         }
@@ -1672,11 +2007,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           },
           "appId": "legacy"
@@ -1696,11 +2037,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           },
           "commandId": "legacy"
@@ -1720,11 +2067,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           },
           "slot": "legacy"
@@ -1744,11 +2097,17 @@
           "executions": {
             "windows": {
               "type": "SEND_HOTKEY",
-              "keys": ["CTRL", "C"]
+              "keys": [
+                "CTRL",
+                "C"
+              ]
             },
             "macos": {
               "type": "SEND_HOTKEY",
-              "keys": ["META", "C"]
+              "keys": [
+                "META",
+                "C"
+              ]
             }
           },
           "name": "legacy"
@@ -2499,6 +2858,215 @@
             "macos": {
               "type": "OPEN_FILE",
               "path": "/tmp/\u0000bad"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "toggle-bundle",
+    "valid": true,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle fixture",
+      "actions": [
+        {
+          "type": "TOGGLE_APP",
+          "executions": {
+            "macos": {
+              "type": "TOGGLE_APP",
+              "bundleIds": [
+                "com.apple.TextEdit"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "toggle-path",
+    "valid": true,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle fixture",
+      "actions": [
+        {
+          "type": "TOGGLE_APP",
+          "executions": {
+            "macos": {
+              "type": "TOGGLE_APP",
+              "knownPaths": [
+                "/System/Applications/TextEdit.app"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "toggle-empty",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle fixture",
+      "actions": [
+        {
+          "type": "TOGGLE_APP",
+          "executions": {
+            "macos": {
+              "type": "TOGGLE_APP"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "toggle-windows",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle fixture",
+      "actions": [
+        {
+          "type": "TOGGLE_APP",
+          "executions": {
+            "windows": {
+              "type": "TOGGLE_APP",
+              "bundleIds": [
+                "com.apple.TextEdit"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "toggle-old-version",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Toggle fixture",
+      "actions": [
+        {
+          "type": "TOGGLE_APP",
+          "executions": {
+            "macos": {
+              "type": "TOGGLE_APP",
+              "bundleIds": [
+                "com.apple.TextEdit"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "toggle-multiple",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle fixture",
+      "actions": [
+        {
+          "type": "TOGGLE_APP",
+          "executions": {
+            "macos": {
+              "type": "TOGGLE_APP",
+              "bundleIds": [
+                "a",
+                "b"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "toggle-relative",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle fixture",
+      "actions": [
+        {
+          "type": "TOGGLE_APP",
+          "executions": {
+            "macos": {
+              "type": "TOGGLE_APP",
+              "knownPaths": [
+                "TextEdit.app"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "toggle-no-state",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle fixture",
+      "actions": [
+        {
+          "type": "TOGGLE_APP",
+          "executions": {
+            "macos": {
+              "type": "TOGGLE_APP",
+              "bundleIds": [
+                "com.apple.TextEdit"
+              ],
+              "state": "Foreground"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "toggle-type-mismatch",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle fixture",
+      "actions": [
+        {
+          "type": "TOGGLE_APP",
+          "executions": {
+            "macos": {
+              "type": "LAUNCH_APP",
+              "bundleIds": [
+                "a"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "toggle-trim",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle fixture",
+      "actions": [
+        {
+          "type": "TOGGLE_APP",
+          "executions": {
+            "macos": {
+              "type": "TOGGLE_APP",
+              "bundleIds": [
+                " a "
+              ]
             }
           }
         }

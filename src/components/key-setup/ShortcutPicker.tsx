@@ -1,6 +1,6 @@
 import { Check, Keyboard, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { CommandDefinition } from "@keyflow/contract";
+import type { CommandDefinition } from "@blink/contract";
 import { formatHotkey } from "../../services/setupService";
 
 export function ShortcutPicker({

@@ -1,4 +1,4 @@
-import type { AppDefinition, CommandDefinition, Profile } from "@keyflow/contract";
+import type { AppDefinition, CommandDefinition, Profile } from "@blink/contract";
 import type { ProfileDraft } from "../models/authoring";
 import { compileProfileDrafts } from "./profileCompiler.ts";
 
@@ -41,7 +41,7 @@ export function downloadProfiles(
   );
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = "keyflow-profiles.json";
+  anchor.download = "blink-profiles.json";
   anchor.click();
   URL.revokeObjectURL(url);
   return result;

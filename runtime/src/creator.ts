@@ -2,6 +2,7 @@ import { t } from "./locale.ts";
 import {
   createHotkeyProfile,
   createOpenAppProfile,
+  createToggleAppProfile,
   createTargetProfile,
   createProfile,
   type Action,
@@ -11,7 +12,7 @@ import {
   type Platform,
   type Profile,
   type Execution,
-} from "@keyflow/contract";
+} from "@blink/contract";
 import {
   performBinding,
   BindingOperationError,
@@ -213,7 +214,7 @@ export async function openRuntimeCreator(host: CreatorHost) {
     mode: host.edit ? null : "physical",
     physicalInput: host.edit?.physicalInput,
   };
-  let action: "OPEN_APP" | "COMMAND" | TargetActionType | undefined;
+  let action: Action["type"] | undefined;
   let appPath: string | undefined;
   let target = "";
   let scriptConsent = false;
@@ -228,7 +229,9 @@ export async function openRuntimeCreator(host: CreatorHost) {
     originalExecution = entry.executions[host.platform];
     appChanged = false;
     appPath =
-      originalExecution?.type === "LAUNCH_APP" ? originalExecution.knownPaths?.[0] : undefined;
+      originalExecution?.type === "LAUNCH_APP" || originalExecution?.type === "TOGGLE_APP"
+        ? originalExecution.knownPaths?.[0]
+        : undefined;
     capture = {
       ...capture,
       mode: null,
@@ -286,7 +289,7 @@ export async function openRuntimeCreator(host: CreatorHost) {
         <button data-physical ${busy || leftoverId || host.edit ? "disabled" : ""}>
           ${capture.mode === "physical" ? t("pressPhysical") : escapeHtml(capture.physicalInput ?? (host.edit ? t("unbound") : t("capturePhysical")))}
         </button>
-        ${host.edit ? `<p>${t("editHint")}</p>${host.edit.profile.actions.length > 1 ? `<label for="edit-action-index">${t("chooseEditAction")}</label><select id="edit-action-index" ${busy ? "disabled" : ""}>${host.edit.profile.actions.map((entry, index) => `<option value="${index}" ${index === actionIndex ? "selected" : ""}>${t("actionIndexPrefix")}${index + 1}${t("actionIndexSuffix")}${{ OPEN_APP: t("openApp"), COMMAND: t("hotkey"), OPEN_URL: t("openUrl"), OPEN_FILE: t("openFile"), OPEN_FOLDER: t("openFolder"), SCRIPT: t("runScript") }[entry.type]}</option>`).join("")}</select>` : ""}` : ""}
+        ${host.edit ? `<p>${t("editHint")}</p>${host.edit.profile.actions.length > 1 ? `<label for="edit-action-index">${t("chooseEditAction")}</label><select id="edit-action-index" ${busy ? "disabled" : ""}>${host.edit.profile.actions.map((entry, index) => `<option value="${index}" ${index === actionIndex ? "selected" : ""}>${t("actionIndexPrefix")}${index + 1}${t("actionIndexSuffix")}${{ OPEN_APP: t("openApp"), TOGGLE_APP: t("toggleApp"), COMMAND: t("hotkey"), OPEN_URL: t("openUrl"), OPEN_FILE: t("openFile"), OPEN_FOLDER: t("openFolder"), SCRIPT: t("runScript") }[entry.type]}</option>`).join("")}</select>` : ""}` : ""}
         ${existing ? `<p class="creator-warning">${t("conflictPrefix")}${escapeHtml(existing.name)}${t("conflictSuffix")}</p>` : ""}
         ${
           host.edit || capture.physicalInput
@@ -294,6 +297,7 @@ export async function openRuntimeCreator(host: CreatorHost) {
           <label>${t("chooseAction")}</label>
           <div class="creator-actions">
             <button data-action="OPEN_APP" aria-pressed="${action === "OPEN_APP"}" ${busy || leftoverId ? "disabled" : ""}>${t("openApp")}</button>
+            ${host.platform === "macos" ? `<button data-action="TOGGLE_APP" aria-pressed="${action === "TOGGLE_APP"}" ${busy || leftoverId ? "disabled" : ""}>${t("toggleApp")}</button>` : ""}
             <button data-action="COMMAND" aria-pressed="${action === "COMMAND"}" ${busy || leftoverId ? "disabled" : ""}>${t("hotkey")}</button>
             ${(
               [
@@ -313,10 +317,11 @@ export async function openRuntimeCreator(host: CreatorHost) {
             : ""
         }
         ${
-          action === "OPEN_APP"
+          action === "OPEN_APP" || action === "TOGGLE_APP"
             ? `
+          ${action === "TOGGLE_APP" ? `<p>${t("toggleAppHint")}</p>` : ""}
           <button data-pick ${busy || leftoverId ? "disabled" : ""}>${t("pickAppButton")}</button>
-          <p class="creator-target">${escapeHtml(appPath ?? (originalExecution?.type === "LAUNCH_APP" ? t("keepLocator") : host.platform === "macos" ? t("pickerMacHint") : t("pickerWindowsHint")))}</p>
+          <p class="creator-target">${escapeHtml(appPath ?? (originalExecution?.type === "LAUNCH_APP" || originalExecution?.type === "TOGGLE_APP" ? t("keepLocator") : host.platform === "macos" ? t("pickerMacHint") : t("pickerWindowsHint")))}</p>
         `
             : action === "COMMAND"
               ? `
@@ -403,7 +408,7 @@ export async function openRuntimeCreator(host: CreatorHost) {
       appChanged = true;
       if (!name.trim())
         name =
-          t("openPrefix") +
+          (action === "TOGGLE_APP" ? t("togglePrefix") : t("openPrefix")) +
           path
             .split(/[\\/]/)
             .pop()!
@@ -443,7 +448,17 @@ export async function openRuntimeCreator(host: CreatorHost) {
       return;
     let profile: Profile;
     try {
-      if (action === "OPEN_APP") {
+      if (action === "TOGGLE_APP") {
+        if (!appPath && !(host.edit && !appChanged && originalExecution?.type === "TOGGLE_APP"))
+          throw new Error(t("chooseAppFirst"));
+        profile = createToggleAppProfile({
+          name,
+          platform: host.platform,
+          ...(host.edit && !appChanged && originalExecution?.type === "TOGGLE_APP"
+            ? { bundleIds: originalExecution.bundleIds, knownPaths: originalExecution.knownPaths }
+            : { knownPaths: [appPath!] }),
+        });
+      } else if (action === "OPEN_APP") {
         if (host.edit && !appChanged && originalExecution?.type === "LAUNCH_APP") {
           profile = createOpenAppProfile({ ...originalExecution, name, platform: host.platform });
         } else {

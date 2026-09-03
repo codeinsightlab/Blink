@@ -35,6 +35,10 @@ pub enum Action {
     OpenApp {
         executions: HashMap<String, Execution>,
     },
+    #[serde(rename = "TOGGLE_APP")]
+    ToggleApp {
+        executions: HashMap<String, Execution>,
+    },
     #[serde(rename = "COMMAND")]
     Command {
         executions: HashMap<String, Execution>,
@@ -61,6 +65,7 @@ impl Action {
     pub fn executions_mut(&mut self) -> &mut HashMap<String, Execution> {
         match self {
             Self::OpenApp { executions }
+            | Self::ToggleApp { executions }
             | Self::Command { executions }
             | Self::OpenUrl { executions }
             | Self::OpenFile { executions }
@@ -71,6 +76,7 @@ impl Action {
     pub fn executions(&self) -> &HashMap<String, Execution> {
         match self {
             Self::OpenApp { executions }
+            | Self::ToggleApp { executions }
             | Self::Command { executions }
             | Self::OpenUrl { executions }
             | Self::OpenFile { executions }
@@ -99,6 +105,13 @@ pub enum Execution {
         known_paths: Vec<String>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         aliases: Vec<String>,
+    },
+    #[serde(rename = "TOGGLE_APP")]
+    ToggleApp {
+        #[serde(rename = "bundleIds", default, skip_serializing_if = "Vec::is_empty")]
+        bundle_ids: Vec<String>,
+        #[serde(rename = "knownPaths", default, skip_serializing_if = "Vec::is_empty")]
+        known_paths: Vec<String>,
     },
     #[serde(rename = "SEND_HOTKEY")]
     SendHotkey { keys: Vec<String> },
@@ -213,6 +226,25 @@ impl Profile {
             }
             for (platform, execution) in executions {
                 match (action, execution) {
+                    (
+                        Action::ToggleApp { .. },
+                        Execution::ToggleApp {
+                            bundle_ids,
+                            known_paths,
+                        },
+                    ) if platform == "macos"
+                        && bundle_ids.len() <= 1
+                        && known_paths.len() <= 1
+                        && !(bundle_ids.is_empty() && known_paths.is_empty())
+                        && bundle_ids.iter().all(|s| {
+                            !s.is_empty()
+                                && trim_protocol_text(s) == s
+                                && !s.chars().any(|c| c <= '\u{1f}' || c == '\u{7f}')
+                        })
+                        && known_paths.iter().all(|s| {
+                            valid_target_path("macos", s)
+                                && s.to_ascii_lowercase().ends_with(".app")
+                        }) => {}
                     (Action::OpenUrl { .. }, Execution::OpenUrl { url }) if valid_http_url(url) => {
                     }
                     (Action::OpenFile { .. }, Execution::OpenFile { path })
@@ -281,6 +313,7 @@ impl Profile {
         }
         for action in &mut self.actions {
             let (Action::OpenApp { executions }
+            | Action::ToggleApp { executions }
             | Action::Command { executions }
             | Action::OpenUrl { executions }
             | Action::OpenFile { executions }
@@ -404,7 +437,7 @@ mod tests {
     #[test]
     fn parses_handwritten_v2_profile_without_registry_ids() {
         let fixture =
-            include_str!("../../../packages/keyflow-contract/fixtures/profile-v2.0.example.json");
+            include_str!("../../../packages/blink-contract/fixtures/profile-v2.0.example.json");
         let profile = Profile::from_json(fixture).expect("v2 fixture must parse");
         assert_eq!(profile.version, "2.0");
         assert_eq!(profile.name, "打开工作台");
@@ -427,7 +460,7 @@ mod tests {
     #[test]
     fn preserves_multi_action_execution_order() {
         let fixture =
-            include_str!("../../../packages/keyflow-contract/fixtures/profile-v2.0.example.json");
+            include_str!("../../../packages/blink-contract/fixtures/profile-v2.0.example.json");
         let profile = Profile::from_json(fixture).unwrap();
         let executions = profile.executions_for("macos").unwrap();
         assert!(matches!(executions[0], Execution::LaunchApp { .. }));

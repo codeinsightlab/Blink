@@ -3,7 +3,7 @@ import {
   type AppDefinition,
   type CommandDefinition,
   type Profile,
-} from "@keyflow/contract";
+} from "@blink/contract";
 import type { AuthoringAction, ProfileDraft } from "../models/authoring.ts";
 
 function compileAction(

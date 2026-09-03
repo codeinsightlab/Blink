@@ -1,4 +1,4 @@
-import { commandDefinitionSchema, type CommandDefinition } from "@keyflow/contract";
+import { commandDefinitionSchema, type CommandDefinition } from "@blink/contract";
 import { create } from "zustand";
 import { initialCommands } from "../data/commands";
 import { readStorage, STORAGE_KEYS, writeStorage } from "../services/storageService";

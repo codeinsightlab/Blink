@@ -14,8 +14,8 @@ mod repository;
 fn producer_repository_binding() {
     // npm run test:creator sends actual shared TS Producer output. Plain cargo test
     // still exercises the same adapter/repository/binding path with the portable fixture.
-    let raw = std::env::var("KEYFLOW_PRODUCER_PROFILES").unwrap_or_else(|_| {
-        include_str!("../../../packages/keyflow-contract/fixtures/profile-v2.0.example.json").into()
+    let raw = std::env::var("BLINK_PRODUCER_PROFILES").unwrap_or_else(|_| {
+        include_str!("../../../packages/blink-contract/fixtures/profile-v2.0.example.json").into()
     });
     let profiles = Profile::many_from_json(&raw).unwrap();
     let count = profiles.len();
@@ -39,8 +39,8 @@ fn producer_repository_binding() {
 use serde::Deserialize;
 #[test]
 fn producer_edit_replacements() {
-    let raw = std::env::var("KEYFLOW_EDIT_PROFILES").unwrap_or_else(|_| {
-        include_str!("../../../packages/keyflow-contract/fixtures/profile-v2.0.example.json").into()
+    let raw = std::env::var("BLINK_EDIT_PROFILES").unwrap_or_else(|_| {
+        include_str!("../../../packages/blink-contract/fixtures/profile-v2.0.example.json").into()
     });
     let profiles = Profile::many_from_json(&raw).unwrap();
     let count = profiles.len();
@@ -72,7 +72,7 @@ struct Case {
 #[test]
 fn shared_protocol_matrix() {
     let cases: Vec<Case> = serde_json::from_str(include_str!(
-        "../../../packages/keyflow-contract/fixtures/profile-v2.parity.json"
+        "../../../packages/blink-contract/fixtures/profile-v2.parity.json"
     ))
     .unwrap();
     let mut results = Vec::new();

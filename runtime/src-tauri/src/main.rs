@@ -1,4 +1,5 @@
 mod app_icon;
+mod app_toggle;
 mod binding;
 mod execution;
 mod profile;
@@ -197,6 +198,28 @@ fn dispatch_profile(app: &AppHandle, id: &str) {
                     });
                     return;
                 }
+                if executions
+                    .iter()
+                    .any(|execution| matches!(execution, profile::Execution::ToggleApp { .. }))
+                {
+                    // App launch polling must not block the AppKit main run loop.
+                    let handle = app.clone();
+                    std::thread::spawn(move || {
+                        match executions.iter().try_for_each(execution::dispatch) {
+                            Ok(()) => publish_diagnostic(
+                                &handle,
+                                "已收到快捷键，命令执行完成".into(),
+                                None,
+                            ),
+                            Err(error) => publish_diagnostic(
+                                &handle,
+                                "已收到快捷键，但命令执行失败".into(),
+                                Some(error),
+                            ),
+                        }
+                    });
+                    return;
+                }
                 for execution in executions {
                     if let Err(error) = execution::dispatch(&execution) {
                         publish_diagnostic(app, "已收到快捷键，但命令执行失败".into(), Some(error));
@@ -255,7 +278,7 @@ pub(crate) fn toggle_listener(app: &AppHandle) -> Result<(), String> {
 pub(crate) fn shutdown_listener(app: &AppHandle) {
     let _ = app.global_shortcut().unregister_all();
 }
-pub(crate) fn quit_keyflow(app: &AppHandle) {
+pub(crate) fn quit_blink(app: &AppHandle) {
     app.state::<AppLifecycle>().0.store(true, Ordering::SeqCst);
     shutdown_listener(app);
     {
@@ -318,6 +341,7 @@ fn runtime_snapshot(core: State<SharedRuntime>) -> RuntimeSnapshot {
                 action_hotkey: action_hotkey(profile),
                 action_type: profile.profile.actions.first().map(|action| match action {
                     profile::Action::OpenApp { .. } => "OPEN_APP",
+                    profile::Action::ToggleApp { .. } => "TOGGLE_APP",
                     profile::Action::Command { .. } => "COMMAND",
                     profile::Action::OpenUrl { .. } => "OPEN_URL",
                     profile::Action::OpenFile { .. } => "OPEN_FILE",
@@ -346,8 +370,8 @@ fn toggle_listener_command(app: AppHandle) -> Result<(), String> {
     toggle_listener(&app)
 }
 #[tauri::command]
-fn quit_keyflow_command(app: AppHandle) {
-    quit_keyflow(&app)
+fn quit_blink_command(app: AppHandle) {
+    quit_blink(&app)
 }
 #[tauri::command]
 fn begin_binding_capture(app: AppHandle, profile_id: String) -> Result<(), String> {
@@ -502,7 +526,7 @@ fn load_fixture_profile(app: AppHandle) -> Result<(), String> {
     import_profiles(
         &app,
         vec![Profile::from_json(include_str!(
-            "../../../packages/keyflow-contract/fixtures/profile-v2.0.example.json"
+            "../../../packages/blink-contract/fixtures/profile-v2.0.example.json"
         ))
         .map_err(|e| e.to_string())?],
     )
@@ -649,17 +673,17 @@ fn main() {
                 Err(error) => {
                     // Returning this error from setup would panic inside macOS's
                     // non-unwinding launch callback. Do not seed or save on failure.
-                    eprintln!("KeyFlow 配置加载失败: {}: {error}", repo_file.display());
+                    eprintln!("Blink 配置加载失败: {}: {error}", repo_file.display());
                     if let Some(window) = app.get_webview_window("main") {
                         let _ = window.hide();
                     }
                     let handle = app.handle().clone();
                     app.dialog()
                         .message(format!(
-                            "无法加载本地配置，KeyFlow 将退出。\n\n文件：{}\n\n原因：{error}\n\n原配置和绑定未被修改。请先备份，再检查配置格式或重置旧开发数据；当前支持 Profile v2.0 / v2.1。",
+                            "无法加载本地配置，Blink 将退出。\n\n文件：{}\n\n原因：{error}\n\n原配置和绑定未被修改。请先备份，再检查配置格式或重置旧开发数据；当前支持 Profile v2.0 / v2.1。",
                             repo_file.display()
                         ))
-                        .title("KeyFlow 配置加载失败")
+                        .title("Blink 配置加载失败")
                         .kind(MessageDialogKind::Error)
                         .show(move |_| {
                             handle.state::<AppLifecycle>().0.store(true, Ordering::SeqCst);
@@ -700,7 +724,7 @@ fn main() {
             tray::set_ui_language,
             runtime_snapshot,
             toggle_listener_command,
-            quit_keyflow_command,
+            quit_blink_command,
             begin_binding_capture,
             cancel_binding_capture,
             load_profile,
@@ -716,5 +740,5 @@ fn main() {
             delete_external_profiles
         ])
         .run(tauri::generate_context!())
-        .expect("KeyFlow Runtime 启动失败");
+        .expect("Blink 启动失败");
 }

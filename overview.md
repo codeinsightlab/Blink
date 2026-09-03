@@ -1,4 +1,4 @@
-# KeyFlow Studio V1 适配度评估报告
+# Blink Studio V1 适配度评估报告
 
 评估时间：2026-09-02（第二次迭代后）
 评估范围：全量代码重新审读（Web 配置端 + Tauri Runtime + Contract 包 + 测试）
@@ -199,7 +199,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    @keyflow/contract                        │
+│                    @blink/contract                        │
 │  (TypeScript 类型 + Zod Schema + Producer 工厂函数)          │
 │  Action: OPEN_APP | COMMAND | OPEN_URL | OPEN_FILE          │
 │          | OPEN_FOLDER | SCRIPT                             │
@@ -229,7 +229,7 @@
 
 ## 六、最终结论
 
-KeyFlow Studio 经过本次迭代后，已经从"架构好但工程粗糙"的状态进化为**架构成熟、Runtime 可用、测试扎实**的项目。
+Blink Studio 经过本次迭代后，已经从"架构好但工程粗糙"的状态进化为**架构成熟、Runtime 可用、测试扎实**的项目。
 
 **V1 发布评估：可以发布。** 核心闭环（Web 配置 → 导出 → Runtime 执行）完整，6 种动作类型在 Runtime 端全实现且安全防护到位。唯一阻塞项是依赖版本锁定和文档同步 — 这两项修复成本极低，不影响架构判断。
 

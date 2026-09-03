@@ -4,6 +4,7 @@ export type { Action, CommandAction, OpenAppAction } from "./action.ts";
 export type {
   Execution,
   LaunchAppExecution,
+  ToggleAppExecution,
   SendHotkeyExecution,
   OpenUrlExecution,
   OpenFileExecution,
@@ -34,6 +35,7 @@ export { commandDefinitionSchema } from "./schemas/command.schema.ts";
 export {
   createProfile,
   createOpenAppProfile,
+  createToggleAppProfile,
   createHotkeyProfile,
   createTargetProfile,
 } from "./producer.ts";

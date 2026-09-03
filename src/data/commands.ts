@@ -1,1 +1,1 @@
-export { officialCommands as initialCommands } from "@keyflow/contract";
+export { officialCommands as initialCommands } from "@blink/contract";

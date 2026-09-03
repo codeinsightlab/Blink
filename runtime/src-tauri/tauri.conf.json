@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "KeyFlow Runtime",
+  "productName": "Blink",
   "version": "0.1.0",
-  "identifier": "com.keyflow.runtime",
+  "identifier": "com.blink.runtime",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "KeyFlow Runtime",
+        "title": "Blink",
         "width": 1120,
         "height": 760,
         "minWidth": 900,
@@ -24,5 +24,16 @@
     ],
     "security": { "csp": null }
   },
-  "bundle": { "active": true, "targets": "all" }
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.png",
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
 }

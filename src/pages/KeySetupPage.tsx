@@ -10,7 +10,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { AppDefinition, CommandDefinition } from "@keyflow/contract";
+import type { AppDefinition, CommandDefinition } from "@blink/contract";
 import { ActionPicker } from "../components/key-setup/ActionPicker";
 import { ShortcutPicker } from "../components/key-setup/ShortcutPicker";
 import { AppPicker } from "../components/key-mapping/AppPicker";

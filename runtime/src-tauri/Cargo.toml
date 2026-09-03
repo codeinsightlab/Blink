@@ -1,8 +1,13 @@
 [package]
-name = "keyflow-runtime"
+name = "blink-runtime"
 version = "0.1.0"
-description = "KeyFlow Runtime V0"
+description = "Blink Runtime V0"
 edition = "2021"
+default-run = "Blink"
+
+[[bin]]
+name = "Blink"
+path = "src/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -22,5 +27,5 @@ uuid = { version = "1", features = ["v4"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6.4", features = ["exception"] }
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSWorkspace", "NSImage", "NSBitmapImageRep", "NSImageRep", "NSGraphics", "NSGraphicsContext", "objc2-core-foundation"] }
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSString", "NSData", "NSDictionary"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["libc", "NSRunningApplication", "NSWorkspace", "NSImage", "NSBitmapImageRep", "NSImageRep", "NSGraphics", "NSGraphicsContext", "objc2-core-foundation"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSBundle", "NSArray", "NSURL", "NSString", "NSData", "NSDictionary"] }

@@ -3,6 +3,10 @@ use std::process::Command;
 
 pub fn dispatch(execution: &Execution) -> Result<(), String> {
     match execution {
+        Execution::ToggleApp {
+            bundle_ids,
+            known_paths,
+        } => crate::app_toggle::dispatch(bundle_ids, known_paths),
         Execution::LaunchApp {
             executable_names,
             bundle_ids,
@@ -75,9 +79,9 @@ fn open_target(target: &str) -> Result<(), String> {
             "-NoProfile",
             "-NonInteractive",
             "-Command",
-            "Start-Process -FilePath $env:KEYFLOW_OPEN_TARGET -ErrorAction Stop",
+            "Start-Process -FilePath $env:BLINK_OPEN_TARGET -ErrorAction Stop",
         ])
-        .env("KEYFLOW_OPEN_TARGET", target)
+        .env("BLINK_OPEN_TARGET", target)
         .status();
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     return Err("UNSUPPORTED_PLATFORM".into());
@@ -227,9 +231,7 @@ fn launch_app(
 
 fn send_hotkey(keys: &[String]) -> Result<(), String> {
     if !automation_permission_granted() {
-        return Err(
-            "缺少 macOS“辅助功能”权限：请授权当前正在运行的 KeyFlow Runtime 二进制后重试".into(),
-        );
+        return Err("缺少 macOS“辅助功能”权限：请授权当前正在运行的 Blink 应用后重试".into());
     }
     use enigo::{Direction, Enigo, Keyboard, Settings};
     let mut enigo = Enigo::new(&Settings::default())
@@ -322,11 +324,11 @@ mod tests {
         })
         .is_err());
         assert!(dispatch(&Execution::OpenFile {
-            path: "/keyflow/nonexistent/file.txt".into()
+            path: "/blink/nonexistent/file.txt".into()
         })
         .is_err());
         assert!(dispatch(&Execution::OpenFolder {
-            path: "/keyflow/nonexistent/folder".into()
+            path: "/blink/nonexistent/folder".into()
         })
         .is_err());
         assert!(super::executable_file("C:\\test.PS1"));
@@ -337,10 +339,10 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[ignore = "Opens native apps; run explicitly on macOS"]
     fn native_open_targets() {
-        let dir = std::env::temp_dir().join(format!("keyflow-open-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("blink-open-test-{}", std::process::id()));
         std::fs::create_dir(&dir).unwrap();
-        let file = dir.join("KeyFlow test document.txt");
-        std::fs::write(&file, "KeyFlow OPEN_FILE verification. Safe to close.\n").unwrap();
+        let file = dir.join("Blink test document.txt");
+        std::fs::write(&file, "Blink OPEN_FILE verification. Safe to close.\n").unwrap();
         assert!(super::dispatch(&crate::profile::Execution::OpenFile {
             path: file.to_string_lossy().into()
         })
@@ -361,7 +363,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     fn executes_only_selected_shell_file_and_reports_exit_and_timeout() {
         let dir = std::env::temp_dir().join(format!(
-            "keyflow-script-test-{}-{}",
+            "blink-script-test-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)

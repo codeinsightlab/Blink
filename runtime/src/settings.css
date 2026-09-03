@@ -1,0 +1,308 @@
+/* Settings-only surfaces; the shared brand is the sole command-deck change. */
+.blink-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+  min-height: 56px;
+}
+.blink-brand .runtime-brand-icon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+}
+.blink-brand > div {
+  min-width: 0;
+}
+.blink-brand b {
+  font-size: 23px;
+  letter-spacing: -0.025em;
+}
+.blink-brand p {
+  margin: 3px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.settings-content {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.settings-content .main-header {
+  flex: none;
+  min-height: auto;
+  padding-top: 32px;
+  padding-bottom: 22px;
+}
+.settings-content .main-header h1 {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+.settings-content .main-header p {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.blink-settings {
+  display: grid;
+  gap: 16px;
+  padding: 0 var(--content-padding) 24px;
+  width: 100%;
+  max-width: 1200px;
+}
+.settings-card {
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 13px;
+  background: linear-gradient(125deg, #282c3a66, #22253255);
+  box-shadow:
+    inset 0 1px #ffffff03,
+    0 6px 24px #00000012;
+}
+.settings-card-heading {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.settings-card-heading > div {
+  min-width: 0;
+}
+.settings-card h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.4;
+}
+.blink-settings p {
+  margin: 3px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.settings-card-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: #f0f0ff;
+  background: linear-gradient(145deg, #5a53fa, #3026a1);
+  box-shadow:
+    inset 0 1px #ffffff30,
+    0 2px 12px #4139ed20;
+}
+.settings-card-icon .runtime-icon {
+  width: 22px;
+  height: 22px;
+}
+.settings-card-icon.settings-runtime {
+  background: linear-gradient(145deg, #439c68, #214d3c);
+}
+.settings-inset {
+  border: 1px solid var(--border-subtle);
+  border-radius: 11px;
+  background: linear-gradient(120deg, #ffffff03, #a9b4ef05);
+  box-shadow: inset 0 1px #ffffff02;
+}
+.settings-preference {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+}
+.settings-preference label,
+.settings-diagnostics dt {
+  font-size: 13px;
+  font-weight: 600;
+}
+.settings-select {
+  position: relative;
+  flex: none;
+}
+.settings-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  color-scheme: dark;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  width: 166px;
+  padding: 9px 36px 9px 13px;
+  border: 1px solid var(--border-highlight);
+  border-radius: 9px;
+  background: #171b2866;
+  cursor: pointer;
+}
+.settings-select > svg {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  width: 15px;
+  height: 15px;
+}
+.settings-select select:hover {
+  border-color: #9caaf766;
+  background: #34394b66;
+}
+.blink-settings :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.settings-runtime-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 13px;
+}
+.settings-status-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #91b0ff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.settings-status-brand i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 9px #7ccca52a;
+}
+.settings-runtime-summary.paused .settings-status-brand i {
+  background: var(--text-muted);
+  box-shadow: none;
+}
+.settings-runtime-summary.error .settings-status-brand i {
+  background: #eab277;
+  box-shadow: none;
+}
+.settings-runtime-summary h3 {
+  margin: 5px 0 0 17px;
+  font-size: 19px;
+  white-space: nowrap;
+}
+.settings-runtime-summary > p {
+  max-width: 370px;
+}
+.settings-diagnostics-title {
+  margin: 12px 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.settings-diagnostics {
+  margin: 0;
+  overflow: hidden;
+}
+.settings-diagnostics > div {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 12px;
+}
+.settings-diagnostics > div + div {
+  border-top: 1px solid var(--divider);
+}
+.settings-diagnostics > div > svg {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: #ffffff03;
+}
+.settings-diagnostics > div > div {
+  min-width: 0;
+}
+.settings-diagnostics dd {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.settings-feedback-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 11px 12px;
+}
+.settings-feedback-body > p {
+  flex: 1 1 240px;
+  margin: 0;
+}
+.settings-email {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #647dce40;
+  border-radius: 9px;
+  color: #8fb5ff;
+  background: #354a8b18;
+  font-size: 12px;
+}
+.settings-email > span {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+  overflow-wrap: anywhere;
+}
+.settings-email svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.settings-quit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-color: #ef88812e;
+  background: linear-gradient(125deg, #6a344020, #29202b22);
+}
+.settings-quit .settings-card-heading {
+  margin: 0;
+}
+.settings-quit h2 {
+  color: var(--danger);
+}
+.settings-quit .settings-card-icon {
+  color: var(--danger);
+  background: linear-gradient(145deg, #75404488, #482a3588);
+  box-shadow: inset 0 1px #ef888119;
+}
+.settings-quit-button {
+  flex: none;
+  padding: 8px 22px;
+  border: 1px solid #ef888138;
+  border-radius: 9px;
+  background: #bd515126;
+  color: var(--danger);
+  font-size: 13px;
+  transition: background 150ms;
+}
+.settings-quit-button:hover {
+  background: #bd515144;
+}
+@media (max-width: 980px) {
+  .settings-runtime-summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .settings-runtime-summary > p {
+    max-width: none;
+    margin-left: 17px;
+  }
+}

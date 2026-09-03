@@ -23,7 +23,7 @@ export function OverviewPage() {
   ];
   return (
     <>
-      <PageHeader title="概览" description="查看当前本地 KeyFlow 能力草稿。" />
+      <PageHeader title="概览" description="查看当前本地 Blink 能力草稿。" />
       <div className="grid grid-cols-4 gap-4">
         {stats.map(({ label, value, icon: Icon }) => (
           <div className="panel p-5" key={label}>

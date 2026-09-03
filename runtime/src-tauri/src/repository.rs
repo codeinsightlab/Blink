@@ -227,7 +227,7 @@ mod tests {
     fn with_repository_file(test: impl FnOnce(&Path)) {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let path = std::env::temp_dir().join(format!(
-            "keyflow-repository-test-{}-{}-{}.json",
+            "blink-repository-test-{}-{}-{}.json",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -313,7 +313,7 @@ mod tests {
     #[test]
     fn restore_rejects_every_invalid_protocol_matrix_case() {
         let cases: Vec<serde_json::Value> = serde_json::from_str(include_str!(
-            "../../../packages/keyflow-contract/fixtures/profile-v2.parity.json"
+            "../../../packages/blink-contract/fixtures/profile-v2.parity.json"
         ))
         .unwrap();
         for case in cases {
@@ -343,7 +343,7 @@ mod tests {
     #[test]
     fn duplicate_import_inserts_distinct_runtime_instances() {
         let fixture =
-            include_str!("../../../packages/keyflow-contract/fixtures/profile-v2.0.example.json");
+            include_str!("../../../packages/blink-contract/fixtures/profile-v2.0.example.json");
         let profile = Profile::from_json(fixture).unwrap();
         let mut repository = ProfileRepository::default();
         let first = repository.insert_import(profile.clone()).unwrap();
@@ -355,7 +355,7 @@ mod tests {
     #[test]
     fn local_rename_preserves_portable_profile_name() {
         let fixture =
-            include_str!("../../../packages/keyflow-contract/fixtures/profile-v2.0.example.json");
+            include_str!("../../../packages/blink-contract/fixtures/profile-v2.0.example.json");
         let profile = Profile::from_json(fixture).unwrap();
         let mut repository = ProfileRepository::default();
         let id = repository.insert_import(profile).unwrap().id;

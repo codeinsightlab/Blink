@@ -7,8 +7,10 @@ import { RuntimeIcon, type RuntimeIconName } from "./runtimeIcon";
 import type { RuntimePlatform, RuntimeProfile, RuntimeSnapshot } from "./types";
 import { openRuntimeCreator, captureCreatorKey } from "./creator";
 import { performBinding, type BindingOperationApi } from "./bindingOperation";
-import type { Profile } from "@keyflow/contract";
+import type { Profile } from "@blink/contract";
 import "./style.css";
+import "./settings.css";
+import { BrandSidebarHeader, SettingsView } from "./settingsView";
 import { orderedCommands, saveOrder } from "./uiPreferences";
 
 import { startCommandDrag } from "./commandDrag";
@@ -78,6 +80,7 @@ function actionIcon(item: RuntimeProfile): RuntimeIconName {
     return (
       {
         OPEN_APP: "app",
+        TOGGLE_APP: "app",
         COMMAND: "command",
         OPEN_URL: "external",
         OPEN_FILE: "import",
@@ -348,8 +351,8 @@ function render() {
   const status = snapshot?.listenerStatus ?? "ERROR";
   const systemCount = profiles.filter((item) => item.source === "SYSTEM").length;
   const externalCount = profiles.length - systemCount;
-  app.innerHTML = `<main class="runtime-shell ${status === "PAUSED" ? "is-paused" : ""}"><aside class="sidebar"><div><div class="sidebar-brand"><span>${RuntimeIcon("brand")}</span><b></b></div><nav><button class="nav-item ${page === "deck" ? "active" : ""}" data-page="deck">${RuntimeIcon("deck")}${t("deck")}</button><button class="nav-item ${page === "settings" ? "active" : ""}" data-page="settings">${RuntimeIcon("settings")}${t("settings")}</button></nav></div><div class="sidebar-bottom"><button class="sidebar-status ${status.toLowerCase()}" id="toggle-listener"><i></i>${statusText()[status]}</button><span>${t("runtimePrefix")}${status === "LISTENING" ? t("running") : t("notListening")}</span></div></aside>
-    <section class="main-content"><header class="main-header"><div><h1>${page === "deck" ? t("deckTitle") : t("settings")}</h1><p>${page === "deck" ? `${externalCount}${t("userCountSuffix")}${systemCount}${t("systemCountSuffix")}` : t("settingsSubtitle")}</p></div>${page === "deck" ? `<div class="deck-actions"><button class="manage-button ${editingExternal ? "is-active" : ""}" id="toggle-external-edit">${RuntimeIcon("folder")}${editingExternal ? t("doneManaging") : t("manageCommands")}</button><button class="import-button" id="import">${RuntimeIcon("import")}${t("importProfile")}</button></div>` : ""}</header>${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}${page === "deck" ? deckMarkup(profiles, platform) : settingsMarkup(status)}${menuMarkup()}${dialogMarkup()}</section></main>`;
+  app.innerHTML = `<main class="runtime-shell ${status === "PAUSED" ? "is-paused" : ""}"><aside class="sidebar"><div>${BrandSidebarHeader()}<nav><button class="nav-item ${page === "deck" ? "active" : ""}" data-page="deck">${RuntimeIcon("deck")}${t("deck")}</button><button class="nav-item ${page === "settings" ? "active" : ""}" data-page="settings">${RuntimeIcon("settings")}${t("settings")}</button></nav></div><div class="sidebar-bottom"><button class="sidebar-status ${status.toLowerCase()}" id="toggle-listener"><i></i>${statusText()[status]}</button><span>${t("runtimePrefix")}${status === "LISTENING" ? t("running") : t("notListening")}</span></div></aside>
+    <section class="main-content ${page === "settings" ? "settings-content" : ""}"><header class="main-header"><div><h1>${page === "deck" ? t("deckTitle") : t("settings")}</h1><p>${page === "deck" ? `${externalCount}${t("userCountSuffix")}${systemCount}${t("systemCountSuffix")}` : t("settingsSubtitle")}</p></div>${page === "deck" ? `<div class="deck-actions"><button class="manage-button ${editingExternal ? "is-active" : ""}" id="toggle-external-edit">${RuntimeIcon("folder")}${editingExternal ? t("doneManaging") : t("manageCommands")}</button><button class="import-button" id="import">${RuntimeIcon("import")}${t("importProfile")}</button></div>` : ""}</header>${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}${page === "deck" ? deckMarkup(profiles, platform) : settingsMarkup(status)}${menuMarkup()}${dialogMarkup()}</section></main>`;
   wireEvents();
   const scroll = document.querySelector<HTMLElement>(".grid-scroll");
   if (scroll) scroll.scrollTop = deckScrollTop;
@@ -525,7 +528,7 @@ function wireEvents() {
   document.querySelector("#dialog-confirm")?.addEventListener("click", () => void confirmDialog());
   document
     .querySelector("#quit")
-    ?.addEventListener("click", () => void invoke("quit_keyflow_command"));
+    ?.addEventListener("click", () => void invoke("quit_blink_command"));
 }
 
 function menuMarkup() {
@@ -537,7 +540,7 @@ function menuMarkup() {
 function settingsMarkup(status: string) {
   const event = snapshot?.lastEvent ?? t("noEvents");
   const result = snapshot?.lastError ? `${t("failedPrefix")}${snapshot.lastError}` : t("noErrors");
-  return `<div class="settings-page"><section class="setting-group"><div class="setting-panel"><div class="setting-row"><div><label for="runtime-language">${t("displayLanguage")}</label><span>${t("languageHint")}</span></div><select id="runtime-language"><option value="zh-CN" ${getLanguage() === "zh-CN" ? "selected" : ""}>${t("languageChinese")}</option><option value="en" ${getLanguage() === "en" ? "selected" : ""}>${t("languageEnglish")}</option></select></div></div></section><section class="settings-hero"><span class="settings-eyebrow">KEYFLOW RUNTIME</span><h2>${status === "LISTENING" ? t("listening") : status === "PAUSED" ? t("listeningPaused") : t("listeningError")}</h2><p>${t("runtimeDescription")}</p></section><section class="setting-group"><p class="setting-label">${t("diagnostics")}</p><div class="setting-panel"><div class="setting-row"><div><b>${t("lastShortcut")}</b><span class="diagnostic-value">${escapeHtml(event)}</span></div></div><div class="setting-row"><div><b>${t("lastResult")}</b><span class="diagnostic-value">${escapeHtml(result)}</span></div></div></div></section><section class="setting-group"><div class="setting-panel"><div class="setting-row"><div><b>${t("quitKeyflow")}</b><span>${t("quitDescription")}</span></div><button id="quit" class="setting-danger">${t("quit")}</button></div></div></section></div>`;
+  return SettingsView(status, event, result);
 }
 async function confirmDialog() {
   if (!dialog) return;

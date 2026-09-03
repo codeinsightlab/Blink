@@ -5,9 +5,9 @@ import {
   Keyboard,
   SlidersHorizontal,
   TerminalSquare,
-  Workflow,
 } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
+import blinkLogo from "../../../runtime/src-tauri/icons/icon.svg";
 
 const primaryLinks = [
   { to: "/", label: "概览", icon: Grid2X2 },
@@ -24,11 +24,9 @@ export function AppLayout() {
     <div className="flex min-h-screen">
       <aside className="fixed inset-y-0 left-0 w-60 border-r border-slate-800 bg-slate-950 p-5 text-slate-300">
         <div className="mb-8 flex items-center gap-3 px-2">
-          <div className="rounded-lg bg-indigo-500 p-2 text-white">
-            <Workflow size={20} />
-          </div>
+          <img src={blinkLogo} alt="Blink" className="h-10 w-10" draggable={false} />
           <div>
-            <div className="font-semibold text-white">KeyFlow Studio</div>
+            <div className="font-semibold text-white">Blink Studio</div>
             <div className="text-xs text-slate-500">网页配置器 · V1</div>
           </div>
         </div>

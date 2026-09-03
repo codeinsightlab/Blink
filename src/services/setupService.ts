@@ -1,4 +1,4 @@
-import type { AppDefinition, CommandDefinition, KeyCode } from "@keyflow/contract";
+import type { AppDefinition, CommandDefinition, KeyCode } from "@blink/contract";
 import type { AuthoringAction, ProfileDraft } from "../models/authoring";
 import { useProfileStore } from "../stores/profileStore";
 

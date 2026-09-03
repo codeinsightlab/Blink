@@ -3,13 +3,14 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   createOpenAppProfile,
+  createToggleAppProfile,
   createHotkeyProfile,
   createProfile,
   createTargetProfile,
   officialCommands,
   profileSchema,
   type Profile,
-} from "@keyflow/contract";
+} from "@blink/contract";
 import {
   captureCreatorKey,
   saveCreatorProfile,
@@ -364,8 +365,8 @@ const rust = spawnSync(
     encoding: "utf8",
     env: {
       ...process.env,
-      KEYFLOW_PRODUCER_PROFILES: JSON.stringify(profiles),
-      KEYFLOW_EDIT_PROFILES: JSON.stringify(editedProfiles),
+      BLINK_PRODUCER_PROFILES: JSON.stringify(profiles),
+      BLINK_EDIT_PROFILES: JSON.stringify(editedProfiles),
     },
   },
 );
@@ -375,3 +376,33 @@ assert.match(rust.stdout, /PRODUCER_EDIT_REPLACEMENTS=36/);
 console.log(
   "Producer, capture isolation, create/bind rollback, and Producer -> Rust Repository/Binding tests passed (12 profiles); official catalog parity passed (COPY/PASTE).",
 );
+
+const toggle = createToggleAppProfile({
+  name: "Toggle TextEdit",
+  platform: "macos",
+  knownPaths: ["/System/Applications/TextEdit.app"],
+});
+assert.equal(toggle.version, "2.1");
+assert.equal(toggle.actions[0]?.type, "TOGGLE_APP");
+assert.throws(() =>
+  createToggleAppProfile({
+    name: "Unsupported",
+    platform: "windows",
+    bundleIds: ["com.apple.TextEdit"],
+  }),
+);
+const toggleDraft = switchActionType(
+  {
+    action: "OPEN_APP",
+    appPath: "/Applications/Old.app",
+    target: "",
+    scriptConsent: false,
+    appChanged: true,
+    capture: { mode: null, physicalInput: "F10" },
+  },
+  "TOGGLE_APP",
+);
+assert.equal(toggleDraft.appPath, undefined);
+assert.equal(toggleDraft.capture.physicalInput, "F10");
+assert.equal(regenerateEditedProfile(toggle, 0, toggle, "macos").actions[0]?.type, "TOGGLE_APP");
+console.log("Toggle Creator producer/edit tests passed");

@@ -1,6 +1,6 @@
 import { Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { CommandDefinition } from "@keyflow/contract";
+import type { CommandDefinition } from "@blink/contract";
 
 export function CommandPicker({
   commands,

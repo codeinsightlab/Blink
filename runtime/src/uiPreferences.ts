@@ -1,4 +1,4 @@
-const ORDER_KEY = "keyflow.runtime.commandOrder";
+const ORDER_KEY = "blink.runtime.commandOrder";
 
 export function readPreference(key: string): string | null {
   try {

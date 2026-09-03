@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { appDefinitionSchema, type AppDefinition } from "@keyflow/contract";
+import { appDefinitionSchema, type AppDefinition } from "@blink/contract";
 
 const emptyApp = (): AppDefinition => ({
   id: "",

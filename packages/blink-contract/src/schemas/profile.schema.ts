@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  toggleAppExecutionSchema,
   launchAppExecutionSchema,
   sendHotkeyExecutionSchema,
   openUrlExecutionSchema,
@@ -29,6 +30,12 @@ export const commandActionSchema = z
   .strict();
 
 export const actionSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("TOGGLE_APP"),
+      executions: z.object({ macos: toggleAppExecutionSchema }).strict(),
+    })
+    .strict(),
   openAppActionSchema,
   commandActionSchema,
   z

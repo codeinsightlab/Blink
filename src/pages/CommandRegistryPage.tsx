@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { CommandEditor } from "../components/command-registry/CommandEditor";
 import { PageHeader } from "../components/PageHeader";
 import { useCommandRegistryStore } from "../stores/commandRegistryStore";
-import { officialCommands } from "@keyflow/contract";
+import { officialCommands } from "@blink/contract";
 
 export function CommandRegistryPage() {
   const { commands, upsertCommand, deleteCommand, toggleCommand } = useCommandRegistryStore();

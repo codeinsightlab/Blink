@@ -69,7 +69,7 @@ export function ExportPage() {
           </div>
           <div className="mt-1 text-xs">
             {prepared.success
-              ? "数组中的每项都是独立、自包含的 KeyFlow Profile，协议版本见各项 version 字段。"
+              ? "数组中的每项都是独立、自包含的 Blink Profile，协议版本见各项 version 字段。"
               : prepared.errors.join(" · ")}
           </div>
         </div>

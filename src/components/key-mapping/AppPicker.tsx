@@ -1,6 +1,6 @@
 import { Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { AppDefinition } from "@keyflow/contract";
+import type { AppDefinition } from "@blink/contract";
 export function AppPicker({
   apps,
   existing,

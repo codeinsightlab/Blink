@@ -41,18 +41,16 @@ body {
   background: var(--window-bg);
   -webkit-user-select: none;
   user-select: none;
+  cursor: default;
 }
 
-/* Desktop chrome is not selectable; editable fields and copyable data opt in. */
-input,
+/* Display text is not selectable. Only editable text and the feedback email opt in. */
+input:not([type="checkbox"]):not([type="radio"]),
 textarea,
-[contenteditable="true"],
-.notice,
-.creator-target,
-.creator-message,
-.diagnostic-value {
+[contenteditable="true"] {
   -webkit-user-select: text;
   user-select: text;
+  cursor: text;
 }
 button,
 input {
@@ -824,6 +822,12 @@ button {
   color: #7669ff;
   background: transparent;
   box-shadow: none;
+}
+.sidebar-brand .runtime-brand-icon {
+  display: block;
+  width: 40px;
+  height: 40px;
+  max-width: none;
 }
 .sidebar nav {
   margin-top: 38px;

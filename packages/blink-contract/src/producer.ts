@@ -58,6 +58,32 @@ export function createOpenAppProfile(input: OpenAppProfileInput): Profile {
   });
 }
 
+export function createToggleAppProfile(
+  input: Pick<
+    OpenAppProfileInput,
+    "name" | "description" | "platform" | "bundleIds" | "knownPaths"
+  >,
+): Profile {
+  if (input.platform !== "macos") throw new Error("Toggle App is supported only on macOS");
+  const { name, description, bundleIds, knownPaths } = input;
+  return createProfile({
+    name,
+    ...(description === undefined ? {} : { description }),
+    actions: [
+      {
+        type: "TOGGLE_APP",
+        executions: {
+          macos: {
+            type: "TOGGLE_APP",
+            ...(bundleIds === undefined ? {} : { bundleIds }),
+            ...(knownPaths === undefined ? {} : { knownPaths }),
+          },
+        },
+      },
+    ],
+  });
+}
+
 export function createHotkeyProfile({
   name,
   description,

@@ -9,6 +9,12 @@ export interface LaunchAppExecution {
   knownPaths?: string[];
 }
 
+export interface ToggleAppExecution {
+  type: "TOGGLE_APP";
+  bundleIds?: string[];
+  knownPaths?: string[];
+}
+
 export interface SendHotkeyExecution {
   type: "SEND_HOTKEY";
   keys: KeyCode[];
@@ -31,6 +37,7 @@ export interface RunScriptExecution {
   path: string;
 }
 export type Execution =
+  | ToggleAppExecution
   | LaunchAppExecution
   | SendHotkeyExecution
   | OpenUrlExecution

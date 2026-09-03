@@ -121,7 +121,7 @@ mod tests {
     }
     #[test]
     fn binding_persistence_and_failed_replace_keep_previous_data() {
-        let dir = std::env::temp_dir().join(format!("keyflow-binding-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("blink-binding-{}", uuid::Uuid::new_v4()));
         let file = dir.join("bindings.json");
         let mut state = BindingState::default();
         state.bind_profile("old", "F10");
