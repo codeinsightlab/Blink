@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta charset="UTF-8"></head><body><div id="app"></div><output id="drag-evidence" style="position:fixed;top:0;right:0;z-index:2000;font-size:9px;max-width:300px;background:#111;color:#fff"></output><script type="module">
+const profiles=Array.from({length:8},(_,i)=>({id:`drag-qa-${i}`,name:`Drag ${i+1}`,description:'Reorder test',actionType:'COMMAND',source:'EXTERNAL'}));
+window.__TAURI_INTERNALS__={transformCallback:()=>1,invoke:async(cmd)=>cmd==='runtime_snapshot'?{profiles,platform:'macos',listenerStatus:'LISTENING'}:undefined};
+await import('/src/main.ts');
+let evidence={};
+window.addEventListener('pointermove',()=>queueMicrotask(()=>{
+ const overlay=document.querySelector('.command-drag-overlay');if(!overlay)return;
+ evidence={duringDrag:true,overlayTransform:overlay.style.transform,visualOrder:[...document.querySelectorAll('[data-row-id]')].sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top).map(x=>x.dataset.rowId),rowTransforms:[...document.querySelectorAll('[data-row-id]')].map(x=>x.style.transform),storedDuring:localStorage.getItem('keyflow.runtime.commandOrder')};
+ document.querySelector('#drag-evidence').textContent=JSON.stringify(evidence);
+}));
+window.addEventListener('pointerup',()=>setTimeout(()=>{evidence.afterOverlay=!!document.querySelector('.command-drag-overlay');evidence.storedAfter=localStorage.getItem('keyflow.runtime.commandOrder');document.querySelector('#drag-evidence').textContent=JSON.stringify(evidence);},0));
+</script></body></html>

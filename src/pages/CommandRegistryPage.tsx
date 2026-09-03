@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { CommandEditor } from "../components/command-registry/CommandEditor";
 import { PageHeader } from "../components/PageHeader";
 import { useCommandRegistryStore } from "../stores/commandRegistryStore";
+import { officialCommands } from "@keyflow/contract";
 
 export function CommandRegistryPage() {
   const { commands, upsertCommand, deleteCommand, toggleCommand } = useCommandRegistryStore();
@@ -33,10 +34,22 @@ export function CommandRegistryPage() {
         title="命令库"
         description="维护系统命令及其 Windows/macOS 快捷键实现。"
         action={
-          <button className="btn-primary" onClick={() => setSelectedId(null)}>
-            <Plus size={16} />
-            新增命令
-          </button>
+          <div className="flex gap-2">
+            <button
+              className="btn-secondary"
+              onClick={() =>
+                officialCommands
+                  .filter((command) => !commands.some((item) => item.id === command.id))
+                  .forEach(upsertCommand)
+              }
+            >
+              补充缺少的官方命令
+            </button>
+            <button className="btn-primary" onClick={() => setSelectedId(null)}>
+              <Plus size={16} />
+              新增命令
+            </button>
+          </div>
         }
       />
       <div className="grid grid-cols-[360px_1fr] gap-6">

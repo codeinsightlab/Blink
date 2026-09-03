@@ -1,3 +1,4 @@
+mod app_icon;
 mod binding;
 mod execution;
 mod profile;
@@ -17,6 +18,7 @@ use std::{
     },
 };
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 struct RuntimeCore {
     repository: ProfileRepository,
@@ -38,7 +40,9 @@ struct RuntimeProfileView {
     description: Option<String>,
     physical_input: Option<String>,
     action_hotkey: Option<Vec<String>>,
+    action_type: Option<&'static str>,
     icon_id: Option<String>,
+    icon_source: Option<String>,
     source: String,
 }
 #[derive(Serialize)]
@@ -49,13 +53,6 @@ struct RuntimeSnapshot {
     listener_status: String,
     last_error: Option<String>,
     last_event: Option<String>,
-}
-pub(crate) fn listener_status_label(status: &str) -> &'static str {
-    match status {
-        "LISTENING" => "● 正在监听",
-        "PAUSED" => "○ 已暂停",
-        _ => "⚠ 需要处理",
-    }
 }
 fn ids(repository: &ProfileRepository) -> HashSet<String> {
     repository
@@ -113,17 +110,29 @@ fn commit_bindings(app: &AppHandle, next: BindingState) -> Result<(), String> {
     };
     if !paused {
         if let Err(error) = register_state(app, &next) {
-            let _ = register_state(app, &previous);
-            set_status(app, "ERROR");
+            if let Err(rollback) = register_state(app, &previous) {
+                set_status(app, "ERROR");
+                return Err(format!("{error}；恢复原快捷键失败：{rollback}"));
+            }
+            set_status(app, "LISTENING");
             return Err(error);
         }
     }
     {
         let state = app.state::<SharedRuntime>();
         let mut core = state.lock().expect("runtime lock");
+        if let Err(error) = next.save(&core.binding_file) {
+            drop(core);
+            if !paused {
+                if let Err(rollback) = register_state(app, &previous) {
+                    set_status(app, "ERROR");
+                    return Err(format!("{error}；恢复原快捷键失败：{rollback}"));
+                }
+            }
+            return Err(error);
+        }
         core.bindings = next;
         core.binding_capture = false;
-        core.bindings.save(&core.binding_file)?;
     }
     if !paused {
         set_status(app, "LISTENING");
@@ -166,6 +175,28 @@ fn dispatch_profile(app: &AppHandle, id: &str) {
     if let Some(executions) = executions {
         match executions {
             Ok(executions) => {
+                if executions
+                    .iter()
+                    .any(|execution| matches!(execution, profile::Execution::RunScript { .. }))
+                {
+                    static SCRIPT_RUNNING: AtomicBool = AtomicBool::new(false);
+                    if SCRIPT_RUNNING.swap(true, Ordering::SeqCst) {
+                        publish_diagnostic(app, "脚本仍在运行，请稍后重试".into(), None);
+                        return;
+                    }
+                    let handle = app.clone();
+                    std::thread::spawn(move || {
+                        let result = executions.iter().try_for_each(execution::dispatch);
+                        SCRIPT_RUNNING.store(false, Ordering::SeqCst);
+                        match result {
+                            Ok(()) => publish_diagnostic(&handle, "脚本命令执行完成".into(), None),
+                            Err(error) => {
+                                publish_diagnostic(&handle, "脚本命令执行失败".into(), Some(error))
+                            }
+                        }
+                    });
+                    return;
+                }
                 for execution in executions {
                     if let Err(error) = execution::dispatch(&execution) {
                         publish_diagnostic(app, "已收到快捷键，但命令执行失败".into(), Some(error));
@@ -253,6 +284,24 @@ fn action_hotkey(profile: &repository::RuntimeProfile) -> Option<Vec<String>> {
             _ => None,
         })
 }
+fn validate_binding_target(profile: &Profile, input: &str) -> Result<(), String> {
+    let mut trigger: Vec<_> = input.split('+').collect();
+    trigger.sort_unstable();
+    for execution in profile
+        .actions
+        .iter()
+        .filter_map(|action| action.executions().get(current_platform()))
+    {
+        if let profile::Execution::SendHotkey { keys } = execution {
+            let mut output: Vec<_> = keys.iter().map(String::as_str).collect();
+            output.sort_unstable();
+            if trigger == output {
+                return Err("动作快捷键不能与实体触发键相同".into());
+            }
+        }
+    }
+    Ok(())
+}
 #[tauri::command]
 fn runtime_snapshot(core: State<SharedRuntime>) -> RuntimeSnapshot {
     let core = core.lock().expect("runtime lock");
@@ -267,7 +316,19 @@ fn runtime_snapshot(core: State<SharedRuntime>) -> RuntimeSnapshot {
                 description: profile.profile.description.clone(),
                 physical_input: core.bindings.profile_to_physical.get(&profile.id).cloned(),
                 action_hotkey: action_hotkey(profile),
+                action_type: profile.profile.actions.first().map(|action| match action {
+                    profile::Action::OpenApp { .. } => "OPEN_APP",
+                    profile::Action::Command { .. } => "COMMAND",
+                    profile::Action::OpenUrl { .. } => "OPEN_URL",
+                    profile::Action::OpenFile { .. } => "OPEN_FILE",
+                    profile::Action::OpenFolder { .. } => "OPEN_FOLDER",
+                    profile::Action::Script { .. } => "SCRIPT",
+                }),
                 icon_id: profile.icon_id.clone(),
+                icon_source: core
+                    .repository_file
+                    .parent()
+                    .and_then(|dir| app_icon::source(dir, profile.icon_id.as_deref())),
                 source: match profile.source {
                     repository::ProfileSource::System => "SYSTEM".into(),
                     repository::ProfileSource::External => "EXTERNAL".into(),
@@ -337,6 +398,106 @@ fn load_profile(app: AppHandle, path: String) -> Result<(), String> {
     )
 }
 #[tauri::command]
+async fn create_runtime_profile(
+    app: AppHandle,
+    profile: serde_json::Value,
+) -> Result<String, String> {
+    let profile = Profile::from_json(&profile.to_string()).map_err(|error| error.to_string())?;
+    profile.executions_for(current_platform())?;
+    let file = app
+        .state::<SharedRuntime>()
+        .lock()
+        .expect("runtime lock")
+        .repository_file
+        .clone();
+    let icon_profile = profile.clone();
+    let icon_dir = file.parent().map(PathBuf::from);
+    // Native lookup and PNG encoding do not occupy the UI thread or repository lock.
+    let icon = tauri::async_runtime::spawn_blocking(move || {
+        icon_dir.and_then(|dir| app_icon::create(&dir, &icon_profile, current_platform()))
+    })
+    .await
+    .ok()
+    .flatten();
+    let state = app.state::<SharedRuntime>();
+    let mut core = state.lock().expect("runtime lock");
+    app_icon::persist_created(&mut core.repository, &file, profile, icon)
+}
+#[tauri::command]
+fn get_editable_profile(core: State<SharedRuntime>, profile_id: String) -> Result<Profile, String> {
+    let core = core.lock().expect("runtime lock");
+    let item = core
+        .repository
+        .find(&profile_id)
+        .ok_or("RuntimeProfile 不存在")?;
+    if item.source == repository::ProfileSource::System {
+        return Err("系统命令不支持编辑".into());
+    }
+    Ok(item.profile.clone())
+}
+#[tauri::command]
+async fn update_runtime_profile(
+    app: AppHandle,
+    profile_id: String,
+    profile: serde_json::Value,
+    name: String,
+) -> Result<(), String> {
+    let profile = Profile::from_json(&profile.to_string()).map_err(|e| e.to_string())?;
+    let (previous, file) = {
+        let state = app.state::<SharedRuntime>();
+        let core = state.lock().expect("runtime lock");
+        let previous = core
+            .repository
+            .find(&profile_id)
+            .ok_or("RuntimeProfile 不存在")?
+            .clone();
+        let mut candidate = core.repository.clone();
+        candidate.replace_profile(&profile_id, profile.clone(), &name)?;
+        (previous, core.repository_file.clone())
+    };
+    let changed = app_icon::target_changed(&previous.profile, &profile, current_platform());
+    let icon_profile = profile.clone();
+    let dir = file.parent().map(PathBuf::from);
+    let icon_previous = previous.clone();
+    let icon = tauri::async_runtime::spawn_blocking(move || {
+        app_icon::prepare_edit_icon(
+            &icon_previous,
+            &icon_profile,
+            current_platform(),
+            |profile| dir.and_then(|dir| app_icon::create(&dir, profile, current_platform())),
+        )
+    })
+    .await
+    .unwrap_or_else(|_| {
+        if changed {
+            None
+        } else {
+            previous.icon_id.clone()
+        }
+    });
+    let state = app.state::<SharedRuntime>();
+    let mut core = state.lock().expect("runtime lock");
+    let result = (|| {
+        if let Some(input) = core.bindings.profile_to_physical.get(&profile_id) {
+            validate_binding_target(&profile, input)?;
+        }
+        app_icon::persist_edit(
+            &mut core.repository,
+            &file,
+            &previous,
+            profile,
+            &name,
+            icon.clone(),
+        )
+    })();
+    if result.is_err() && changed {
+        if let Some(dir) = file.parent() {
+            app_icon::cleanup(dir, icon.as_deref(), &core.repository);
+        }
+    }
+    result
+}
+#[tauri::command]
 fn load_fixture_profile(app: AppHandle) -> Result<(), String> {
     import_profiles(
         &app,
@@ -355,9 +516,11 @@ fn bind_key(app: AppHandle, profile_id: String, physical_key: String) -> Result<
     let mut next = {
         let state = app.state::<SharedRuntime>();
         let core = state.lock().expect("runtime lock");
-        if core.repository.find(&profile_id).is_none() {
-            return Err("RuntimeProfile 不存在".into());
-        }
+        let item = core
+            .repository
+            .find(&profile_id)
+            .ok_or("RuntimeProfile 不存在")?;
+        validate_binding_target(&item.profile, &physical_key)?;
         core.bindings.clone()
     };
     next.bind_profile(&profile_id, &physical_key);
@@ -386,8 +549,18 @@ fn rename_profile(app: AppHandle, profile_id: String, name: String) -> Result<()
 fn set_profile_icon(app: AppHandle, profile_id: String, icon_id: String) -> Result<(), String> {
     let state = app.state::<SharedRuntime>();
     let mut core = state.lock().expect("runtime lock");
-    core.repository.set_icon(&profile_id, icon_id)?;
-    core.repository.save(&core.repository_file)
+    let previous = core
+        .repository
+        .find(&profile_id)
+        .and_then(|p| p.icon_id.clone());
+    let mut candidate = core.repository.clone();
+    candidate.set_icon(&profile_id, icon_id)?;
+    candidate.save(&core.repository_file)?;
+    core.repository = candidate;
+    if let Some(dir) = core.repository_file.parent() {
+        app_icon::cleanup(dir, previous.as_deref(), &core.repository);
+    }
+    Ok(())
 }
 #[tauri::command]
 fn delete_profile(app: AppHandle, profile_id: String) -> Result<(), String> {
@@ -405,8 +578,15 @@ fn delete_profile(app: AppHandle, profile_id: String) -> Result<(), String> {
     unbind_profile(app.clone(), profile_id.clone())?;
     let state = app.state::<SharedRuntime>();
     let mut core = state.lock().expect("runtime lock");
-    core.repository.delete(&profile_id)?;
-    core.repository.save(&core.repository_file)
+    // Keep the record visible/retryable if cleanup cannot be persisted.
+    let mut candidate = core.repository.clone();
+    let removed = candidate.delete(&profile_id)?;
+    candidate.save(&core.repository_file)?;
+    core.repository = candidate;
+    if let Some(dir) = core.repository_file.parent() {
+        app_icon::cleanup(dir, removed.icon_id.as_deref(), &core.repository);
+    }
+    Ok(())
 }
 #[tauri::command]
 fn delete_external_profiles(app: AppHandle, profile_ids: Vec<String>) -> Result<usize, String> {
@@ -420,12 +600,31 @@ fn delete_external_profiles(app: AppHandle, profile_ids: Vec<String>) -> Result<
     }
     let state = app.state::<SharedRuntime>();
     let mut core = state.lock().expect("runtime lock");
+    let mut candidate = core.repository.clone();
+    let mut removed = Vec::new();
     for id in &ids {
-        core.repository.delete(id)?;
+        removed.push(candidate.delete(id)?);
     }
-    core.repository.save(&core.repository_file)?;
+    candidate.save(&core.repository_file)?;
+    core.repository = candidate;
+    if let Some(dir) = core.repository_file.parent() {
+        for item in removed {
+            app_icon::cleanup(dir, item.icon_id.as_deref(), &core.repository);
+        }
+    }
     Ok(ids.len())
 }
+#[cfg(test)]
+mod consistency_tests {
+    #[test]
+    fn shared_binding_and_edit_reject_direct_self_trigger() {
+        let profile = crate::profile::Profile::from_json(&serde_json::json!({"version":"2.0","name":"Copy","actions":[{"type":"COMMAND","executions":{(super::current_platform()):{"type":"SEND_HOTKEY","keys":["CTRL","C"]}}}]}).to_string()).unwrap();
+        assert!(super::validate_binding_target(&profile, "CTRL+C").is_err());
+        assert!(super::validate_binding_target(&profile, "C+CTRL").is_err());
+        assert!(super::validate_binding_target(&profile, "F10").is_ok());
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
@@ -445,8 +644,30 @@ fn main() {
             app.manage(AppLifecycle(AtomicBool::new(false)));
             let dir = app.path().app_data_dir()?;
             let repo_file = dir.join("profiles.json");
-            let mut repository =
-                ProfileRepository::load(&repo_file).map_err(std::io::Error::other)?;
+            let mut repository = match ProfileRepository::load(&repo_file) {
+                Ok(repository) => repository,
+                Err(error) => {
+                    // Returning this error from setup would panic inside macOS's
+                    // non-unwinding launch callback. Do not seed or save on failure.
+                    eprintln!("KeyFlow 配置加载失败: {}: {error}", repo_file.display());
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.hide();
+                    }
+                    let handle = app.handle().clone();
+                    app.dialog()
+                        .message(format!(
+                            "无法加载本地配置，KeyFlow 将退出。\n\n文件：{}\n\n原因：{error}\n\n原配置和绑定未被修改。请先备份，再检查配置格式或重置旧开发数据；当前支持 Profile v2.0 / v2.1。",
+                            repo_file.display()
+                        ))
+                        .title("KeyFlow 配置加载失败")
+                        .kind(MessageDialogKind::Error)
+                        .show(move |_| {
+                            handle.state::<AppLifecycle>().0.store(true, Ordering::SeqCst);
+                            handle.exit(1);
+                        });
+                    return Ok(());
+                }
+            };
             let seeded = repository
                 .ensure_system_profiles()
                 .map_err(|error| std::io::Error::other(error))?;
@@ -476,12 +697,16 @@ fn main() {
         })
         .on_window_event(window::hide_on_close)
         .invoke_handler(tauri::generate_handler![
+            tray::set_ui_language,
             runtime_snapshot,
             toggle_listener_command,
             quit_keyflow_command,
             begin_binding_capture,
             cancel_binding_capture,
             load_profile,
+            create_runtime_profile,
+            get_editable_profile,
+            update_runtime_profile,
             load_fixture_profile,
             bind_key,
             unbind_profile,

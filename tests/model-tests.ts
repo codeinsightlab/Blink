@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { profileSchema, type AppDefinition, type CommandDefinition } from "@keyflow/contract";
 import { compileProfileDraft } from "../src/services/profileCompiler.ts";
+import { profileVersionLabel } from "../src/services/exportService.ts";
+
+assert.equal(profileVersionLabel([]), "—");
+assert.equal(profileVersionLabel([{ version: "2.0" }, { version: "2.0" }]), "2.0");
+assert.equal(profileVersionLabel([{ version: "2.1" }]), "2.1");
+assert.equal(
+  profileVersionLabel([{ version: "2.1" }, { version: "2.0" }, { version: "2.1" }]),
+  "2.0 / 2.1",
+);
 
 const apps: AppDefinition[] = [
   {

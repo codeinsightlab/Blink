@@ -9,7 +9,9 @@ export interface RuntimeProfile {
   description?: string;
   physicalInput?: string;
   actionHotkey?: string[];
+  actionType?: "OPEN_APP" | "COMMAND" | "OPEN_URL" | "OPEN_FILE" | "OPEN_FOLDER" | "SCRIPT";
   iconId?: string;
+  iconSource?: string;
   source: ProfileSource;
 }
 export interface RuntimeSnapshot {

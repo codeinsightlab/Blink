@@ -7,8 +7,14 @@
       {
         "type": "COMMAND",
         "executions": {
-          "windows": { "type": "SEND_HOTKEY", "keys": ["CTRL", "C"] },
-          "macos": { "type": "SEND_HOTKEY", "keys": ["META", "C"] }
+          "windows": {
+            "type": "SEND_HOTKEY",
+            "keys": ["CTRL", "C"]
+          },
+          "macos": {
+            "type": "SEND_HOTKEY",
+            "keys": ["META", "C"]
+          }
         }
       }
     ]
@@ -21,87 +27,14 @@
       {
         "type": "COMMAND",
         "executions": {
-          "windows": { "type": "SEND_HOTKEY", "keys": ["CTRL", "V"] },
-          "macos": { "type": "SEND_HOTKEY", "keys": ["META", "V"] }
-        }
-      }
-    ]
-  },
-  {
-    "version": "2.0",
-    "name": "剪切",
-    "description": "剪切当前选中内容",
-    "actions": [
-      {
-        "type": "COMMAND",
-        "executions": {
-          "windows": { "type": "SEND_HOTKEY", "keys": ["CTRL", "X"] },
-          "macos": { "type": "SEND_HOTKEY", "keys": ["META", "X"] }
-        }
-      }
-    ]
-  },
-  {
-    "version": "2.0",
-    "name": "撤销",
-    "actions": [
-      {
-        "type": "COMMAND",
-        "executions": {
-          "windows": { "type": "SEND_HOTKEY", "keys": ["CTRL", "Z"] },
-          "macos": { "type": "SEND_HOTKEY", "keys": ["META", "Z"] }
-        }
-      }
-    ]
-  },
-  {
-    "version": "2.0",
-    "name": "重做",
-    "actions": [
-      {
-        "type": "COMMAND",
-        "executions": {
-          "windows": { "type": "SEND_HOTKEY", "keys": ["CTRL", "Y"] },
-          "macos": { "type": "SEND_HOTKEY", "keys": ["META", "SHIFT", "Z"] }
-        }
-      }
-    ]
-  },
-  {
-    "version": "2.0",
-    "name": "全选",
-    "actions": [
-      {
-        "type": "COMMAND",
-        "executions": {
-          "windows": { "type": "SEND_HOTKEY", "keys": ["CTRL", "A"] },
-          "macos": { "type": "SEND_HOTKEY", "keys": ["META", "A"] }
-        }
-      }
-    ]
-  },
-  {
-    "version": "2.0",
-    "name": "保存",
-    "actions": [
-      {
-        "type": "COMMAND",
-        "executions": {
-          "windows": { "type": "SEND_HOTKEY", "keys": ["CTRL", "S"] },
-          "macos": { "type": "SEND_HOTKEY", "keys": ["META", "S"] }
-        }
-      }
-    ]
-  },
-  {
-    "version": "2.0",
-    "name": "查找",
-    "actions": [
-      {
-        "type": "COMMAND",
-        "executions": {
-          "windows": { "type": "SEND_HOTKEY", "keys": ["CTRL", "F"] },
-          "macos": { "type": "SEND_HOTKEY", "keys": ["META", "F"] }
+          "windows": {
+            "type": "SEND_HOTKEY",
+            "keys": ["CTRL", "V"]
+          },
+          "macos": {
+            "type": "SEND_HOTKEY",
+            "keys": ["META", "V"]
+          }
         }
       }
     ]

@@ -12,6 +12,7 @@ import {
   Link,
   PanelsTopLeft,
   Pencil,
+  Plus,
   Redo2,
   Save,
   Scan,
@@ -26,6 +27,7 @@ import {
 } from "lucide";
 
 export type RuntimeIconName =
+  | "plus"
   | "brand"
   | "deck"
   | "settings"
@@ -50,6 +52,7 @@ export type RuntimeIconName =
   | "external";
 
 const ICONS: Record<RuntimeIconName, IconNode> = {
+  plus: Plus,
   brand: PanelsTopLeft,
   deck: LayoutGrid,
   settings: Settings,

@@ -77,11 +77,19 @@ impl ProfileRepository {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         }
-        fs::write(
-            path,
-            serde_json::to_string_pretty(&validated).map_err(|error| error.to_string())?,
-        )
-        .map_err(|error| error.to_string())
+        let temporary = path.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
+        let result = (|| {
+            fs::write(
+                &temporary,
+                serde_json::to_string_pretty(&validated).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?;
+            fs::rename(&temporary, path).map_err(|e| e.to_string())
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(temporary);
+        }
+        result
     }
     fn insert(
         &mut self,
@@ -107,17 +115,33 @@ impl ProfileRepository {
     pub fn insert_import(&mut self, profile: Profile) -> Result<RuntimeProfile, String> {
         self.insert(profile, ProfileSource::External, None)
     }
+    pub fn replace_profile(
+        &mut self,
+        id: &str,
+        profile: Profile,
+        name: &str,
+    ) -> Result<(), String> {
+        let item = self
+            .profiles
+            .iter_mut()
+            .find(|item| item.id == id)
+            .ok_or("RuntimeProfile 不存在")?;
+        if item.source == ProfileSource::System {
+            return Err("系统命令不支持编辑".into());
+        }
+        let name = name.trim();
+        if name.is_empty() {
+            return Err("命令名称不能为空".into());
+        }
+        let profile = profile.validate().map_err(|error| error.to_string())?;
+        if name != item.display_name() {
+            item.local_name_override = (name != item.profile.name).then(|| name.to_owned());
+        }
+        item.profile = profile;
+        Ok(())
+    }
     pub fn ensure_system_profiles(&mut self) -> Result<bool, String> {
-        const IDS: [&str; 8] = [
-            "copy",
-            "paste",
-            "cut",
-            "undo",
-            "redo",
-            "select-all",
-            "save",
-            "find",
-        ];
+        const IDS: [&str; 2] = ["copy", "paste"];
         let profiles = Profile::many_from_json(include_str!("../fixtures/builtin-profiles.json"))
             .map_err(|error| error.to_string())?;
         if profiles.len() != IDS.len() {
@@ -132,10 +156,10 @@ impl ProfileRepository {
         if expected_ids.iter().all(|id| existing.contains(id.as_str())) {
             return Ok(false);
         }
-        self.profiles
-            .retain(|profile| !profile.id.starts_with("system-builtin-"));
         for (profile, id) in profiles.into_iter().zip(expected_ids) {
-            self.insert(profile, ProfileSource::System, Some(id))?;
+            if self.find(&id).is_none() {
+                self.insert(profile, ProfileSource::System, Some(id))?;
+            }
         }
         Ok(true)
     }
@@ -219,6 +243,18 @@ mod tests {
 
     fn copy_profile() -> Profile {
         Profile::from_json(r#"{"version":"2.0","name":"Copy","actions":[{"type":"COMMAND","executions":{"macos":{"type":"SEND_HOTKEY","keys":["META","C"]}}}]}"#).unwrap()
+    }
+
+    #[test]
+    fn rejects_legacy_runtime_record_without_overwriting_it() {
+        with_repository_file(|path| {
+            let original = r#"{"profiles":[{"id":"system-builtin-copy","name":"Copy","sourceProfile":{"version":"1.2","bindings":[]}}]}"#;
+            fs::write(path, original).unwrap();
+            let error = ProfileRepository::load(path).unwrap_err();
+            assert!(error.contains("REPOSITORY_RESTORE_FAILED"));
+            assert!(error.contains("unknown field `name`"));
+            assert_eq!(fs::read_to_string(path).unwrap(), original);
+        });
     }
 
     #[test]
@@ -333,8 +369,97 @@ mod tests {
     fn system_profiles_are_seeded_once_and_cannot_be_deleted() {
         let mut repository = ProfileRepository::default();
         assert!(repository.ensure_system_profiles().unwrap());
-        assert_eq!(repository.profiles.len(), 8);
+        assert_eq!(repository.profiles.len(), 2);
         assert!(!repository.ensure_system_profiles().unwrap());
         assert!(repository.delete("system-builtin-copy").is_err());
+    }
+
+    #[test]
+    fn edit_preserves_identity_metadata_other_actions_and_platforms() {
+        let mut repository = ProfileRepository::default();
+        let mut profile = copy_profile();
+        profile.actions[0].executions_mut().insert(
+            "windows".into(),
+            crate::profile::Execution::SendHotkey {
+                keys: vec!["CTRL".into(), "C".into()],
+            },
+        );
+        profile.actions.push(profile.actions[0].clone());
+        let id = repository.insert_import(profile).unwrap().id;
+        repository.set_icon(&id, "star".into()).unwrap();
+        let before = serde_json::to_value(repository.find(&id).unwrap()).unwrap();
+        let mut replacement = repository.find(&id).unwrap().profile.clone();
+        replacement.actions[0].executions_mut().insert(
+            "macos".into(),
+            crate::profile::Execution::SendHotkey {
+                keys: vec!["META".into(), "V".into()],
+            },
+        );
+        repository
+            .replace_profile(&id, replacement, "My Paste")
+            .unwrap();
+        let after = serde_json::to_value(repository.find(&id).unwrap()).unwrap();
+        assert_eq!(after["id"], before["id"]);
+        assert_eq!(after["iconId"], before["iconId"]);
+        assert_eq!(after["source"], before["source"]);
+        assert_eq!(after["profile"]["name"], before["profile"]["name"]);
+        assert_eq!(
+            after["profile"]["actions"][1],
+            before["profile"]["actions"][1]
+        );
+        assert_eq!(
+            after["profile"]["actions"][0]["executions"]["windows"],
+            before["profile"]["actions"][0]["executions"]["windows"]
+        );
+        assert_eq!(
+            after["profile"]["actions"][0]["executions"]["macos"]["keys"],
+            serde_json::json!(["META", "V"])
+        );
+        assert_eq!(after["localNameOverride"], "My Paste");
+        with_repository_file(|path| {
+            repository.save(path).unwrap();
+            assert_eq!(
+                serde_json::to_value(ProfileRepository::load(path).unwrap().find(&id).unwrap())
+                    .unwrap(),
+                after
+            );
+        });
+        let mut invalid = copy_profile();
+        invalid.actions[0].executions_mut().insert(
+            "macos".into(),
+            crate::profile::Execution::OpenUrl {
+                url: "https://example.com".into(),
+            },
+        );
+        assert!(repository.replace_profile(&id, invalid, "Invalid").is_err());
+        assert!(repository
+            .replace_profile("missing", copy_profile(), "Invalid")
+            .is_err());
+        assert_eq!(
+            serde_json::to_value(repository.find(&id).unwrap()).unwrap(),
+            after
+        );
+        repository.ensure_system_profiles().unwrap();
+        assert!(repository
+            .replace_profile("system-builtin-copy", copy_profile(), "Invalid")
+            .is_err());
+    }
+
+    #[test]
+    fn new_builtins_preserve_existing_local_state() {
+        let mut repository = ProfileRepository::default();
+        repository.ensure_system_profiles().unwrap();
+        repository.profiles.truncate(1);
+        repository
+            .rename("system-builtin-copy", "My Copy".into())
+            .unwrap();
+        repository
+            .set_icon("system-builtin-copy", "star".into())
+            .unwrap();
+        assert!(repository.ensure_system_profiles().unwrap());
+        assert_eq!(repository.profiles.len(), 2);
+        let copy = repository.find("system-builtin-copy").unwrap();
+        assert_eq!(copy.display_name(), "My Copy");
+        assert_eq!(copy.icon_id.as_deref(), Some("star"));
     }
 }

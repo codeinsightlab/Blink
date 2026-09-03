@@ -1,5 +1,5 @@
 import {
-  profileSchema,
+  createProfile,
   type AppDefinition,
   type CommandDefinition,
   type Profile,
@@ -36,8 +36,7 @@ export function compileProfileDraft(
   apps: AppDefinition[],
   commands: CommandDefinition[],
 ): Profile {
-  return profileSchema.parse({
-    version: "2.0",
+  return createProfile({
     name: draft.name.trim(),
     ...(draft.description?.trim() ? { description: draft.description.trim() } : {}),
     actions: draft.actions.map((action) => compileAction(action, apps, commands)),

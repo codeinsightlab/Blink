@@ -6,7 +6,7 @@ use thiserror::Error;
 pub enum ProfileError {
     #[error("INVALID_JSON: {0}")]
     InvalidJson(String),
-    #[error("UNSUPPORTED_PROFILE_VERSION: 仅支持 Profile v2.0")]
+    #[error("UNSUPPORTED_PROFILE_VERSION: 仅支持 Profile v2.0 / v2.1")]
     UnsupportedVersion,
     #[error("INVALID_PROFILE: {0}")]
     InvalidProfile(String),
@@ -39,12 +39,43 @@ pub enum Action {
     Command {
         executions: HashMap<String, Execution>,
     },
+    #[serde(rename = "OPEN_URL")]
+    OpenUrl {
+        executions: HashMap<String, Execution>,
+    },
+    #[serde(rename = "OPEN_FILE")]
+    OpenFile {
+        executions: HashMap<String, Execution>,
+    },
+    #[serde(rename = "OPEN_FOLDER")]
+    OpenFolder {
+        executions: HashMap<String, Execution>,
+    },
+    #[serde(rename = "SCRIPT")]
+    Script {
+        executions: HashMap<String, Execution>,
+    },
 }
 
 impl Action {
+    pub fn executions_mut(&mut self) -> &mut HashMap<String, Execution> {
+        match self {
+            Self::OpenApp { executions }
+            | Self::Command { executions }
+            | Self::OpenUrl { executions }
+            | Self::OpenFile { executions }
+            | Self::OpenFolder { executions }
+            | Self::Script { executions } => executions,
+        }
+    }
     pub fn executions(&self) -> &HashMap<String, Execution> {
         match self {
-            Self::OpenApp { executions } | Self::Command { executions } => executions,
+            Self::OpenApp { executions }
+            | Self::Command { executions }
+            | Self::OpenUrl { executions }
+            | Self::OpenFile { executions }
+            | Self::OpenFolder { executions }
+            | Self::Script { executions } => executions,
         }
     }
 }
@@ -71,6 +102,58 @@ pub enum Execution {
     },
     #[serde(rename = "SEND_HOTKEY")]
     SendHotkey { keys: Vec<String> },
+    #[serde(rename = "OPEN_URL")]
+    OpenUrl { url: String },
+    #[serde(rename = "OPEN_FILE")]
+    OpenFile { path: String },
+    #[serde(rename = "OPEN_FOLDER")]
+    OpenFolder { path: String },
+    #[serde(rename = "RUN_SCRIPT")]
+    RunScript { path: String },
+}
+
+pub fn valid_http_url(value: &str) -> bool {
+    if value.chars().any(|c| {
+        c == '\\' || c <= '\u{1f}' || c == '\u{7f}' || trim_protocol_text(&c.to_string()).is_empty()
+    }) {
+        return false;
+    }
+    let Some(rest) = value
+        .strip_prefix("https://")
+        .or_else(|| value.strip_prefix("http://"))
+    else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let parts: Vec<_> = authority.split(':').collect();
+    parts.len() <= 2
+        && parts[0].starts_with(|c: char| c.is_ascii_alphanumeric())
+        && parts[0]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+        && (parts.len() == 1
+            || (!parts[1].is_empty()
+                && parts[1].bytes().all(|c| c.is_ascii_digit())
+                && parts[1].parse::<u16>().is_ok_and(|port| port > 0)))
+}
+
+pub fn valid_target_path(platform: &str, path: &str) -> bool {
+    if path.is_empty() || path.chars().any(|c| c <= '\u{1f}' || c == '\u{7f}') {
+        return false;
+    }
+    if platform == "macos" {
+        return path.starts_with('/');
+    }
+    let bytes = path.as_bytes();
+    (bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && (bytes[2] == b'\\' || bytes[2] == b'/'))
+        || path.strip_prefix("\\\\").is_some_and(|rest| {
+            let mut parts = rest.split('\\');
+            parts.next().is_some_and(|s| !s.is_empty())
+                && parts.next().is_some_and(|s| !s.is_empty())
+        })
 }
 
 impl Profile {
@@ -88,7 +171,7 @@ impl Profile {
     }
 
     pub fn validate(mut self) -> Result<Self, ProfileError> {
-        if self.version != "2.0" {
+        if self.version != "2.0" && self.version != "2.1" {
             return Err(ProfileError::UnsupportedVersion);
         }
         self.name = trim_protocol_text(&self.name).into();
@@ -111,6 +194,13 @@ impl Profile {
             return Err(ProfileError::InvalidProfile("actions 不能为空".into()));
         }
         for action in &self.actions {
+            if self.version == "2.0"
+                && !matches!(action, Action::OpenApp { .. } | Action::Command { .. })
+            {
+                return Err(ProfileError::InvalidProfile(
+                    "新增动作需要 Profile v2.1".into(),
+                ));
+            }
             let executions = action.executions();
             if executions.is_empty()
                 || !executions
@@ -121,8 +211,20 @@ impl Profile {
                     "Action 至少需要一个合法平台实现".into(),
                 ));
             }
-            for execution in executions.values() {
+            for (platform, execution) in executions {
                 match (action, execution) {
+                    (Action::OpenUrl { .. }, Execution::OpenUrl { url }) if valid_http_url(url) => {
+                    }
+                    (Action::OpenFile { .. }, Execution::OpenFile { path })
+                    | (Action::OpenFolder { .. }, Execution::OpenFolder { path })
+                        if valid_target_path(platform, path) => {}
+                    (Action::Script { .. }, Execution::RunScript { path })
+                        if valid_target_path(platform, path)
+                            && path.to_ascii_lowercase().ends_with(if platform == "macos" {
+                                ".sh"
+                            } else {
+                                ".ps1"
+                            }) => {}
                     (
                         Action::OpenApp { .. },
                         Execution::LaunchApp {
@@ -178,7 +280,12 @@ impl Profile {
             }
         }
         for action in &mut self.actions {
-            let (Action::OpenApp { executions } | Action::Command { executions }) = action;
+            let (Action::OpenApp { executions }
+            | Action::Command { executions }
+            | Action::OpenUrl { executions }
+            | Action::OpenFile { executions }
+            | Action::OpenFolder { executions }
+            | Action::Script { executions }) = action;
             for execution in executions.values_mut() {
                 if let Execution::LaunchApp {
                     executable_names,

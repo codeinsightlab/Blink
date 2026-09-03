@@ -4,3 +4,4 @@ target/
 *.tsbuildinfo
 .DS_Store
 docs/
+.workbuddy-ai/

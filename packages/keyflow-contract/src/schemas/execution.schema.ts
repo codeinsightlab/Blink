@@ -35,4 +35,42 @@ export const launchAppExecutionSchema = z
     "LAUNCH_APP 至少需要一个应用定位线索",
   );
 
-export const executionSchema = z.union([launchAppExecutionSchema, sendHotkeyExecutionSchema]);
+// Deliberately small URL subset: HTTP(S), ASCII DNS/localhost, optional port.
+export const portableHttpUrl = (value: string) => {
+  if (/[\s\\\u0000-\u001f\u007f]/u.test(value)) return false;
+  const match = /^https?:\/\/([^/?#]+)(?:[/?#].*)?$/.exec(value);
+  if (!match) return false;
+  const parts = match[1]!.split(":");
+  return (
+    parts.length <= 2 &&
+    /^[A-Za-z0-9][A-Za-z0-9.-]*$/.test(parts[0]!) &&
+    (parts.length === 1 || (/^[0-9]+$/.test(parts[1]!) && +parts[1]! > 0 && +parts[1]! <= 65535))
+  );
+};
+const targetPath = z
+  .string()
+  .min(1)
+  .refine((s) => !/[\u0000-\u001f\u007f]/.test(s), "路径不能包含控制字符");
+export const openUrlExecutionSchema = z
+  .object({
+    type: z.literal("OPEN_URL"),
+    url: z.string().refine(portableHttpUrl, "请输入完整 HTTP/HTTPS 地址"),
+  })
+  .strict();
+export const openFileExecutionSchema = z
+  .object({ type: z.literal("OPEN_FILE"), path: targetPath })
+  .strict();
+export const openFolderExecutionSchema = z
+  .object({ type: z.literal("OPEN_FOLDER"), path: targetPath })
+  .strict();
+export const runScriptExecutionSchema = z
+  .object({ type: z.literal("RUN_SCRIPT"), path: targetPath })
+  .strict();
+export const executionSchema = z.union([
+  launchAppExecutionSchema,
+  sendHotkeyExecutionSchema,
+  openUrlExecutionSchema,
+  openFileExecutionSchema,
+  openFolderExecutionSchema,
+  runScriptExecutionSchema,
+]);

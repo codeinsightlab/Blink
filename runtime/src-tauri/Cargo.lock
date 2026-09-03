@@ -1957,7 +1957,12 @@ dependencies = [
 name = "keyflow-runtime"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "enigo",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "png 0.17.16",
  "serde",
  "serde_json",
  "tauri",
@@ -1966,6 +1971,7 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-single-instance",
  "thiserror 2.0.20",
+ "uuid",
 ]
 
 [[package]]

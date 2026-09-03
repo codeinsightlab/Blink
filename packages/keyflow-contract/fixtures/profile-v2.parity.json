@@ -1793,5 +1793,716 @@
         }
       ]
     }
+  },
+  {
+    "id": "v21-OPEN_URL-macos",
+    "valid": true,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "macos": {
+              "type": "OPEN_URL",
+              "url": "https://example.com/a?q=1&b=2"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v20-reject-OPEN_URL-macos",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "macos": {
+              "type": "OPEN_URL",
+              "url": "https://example.com/a?q=1&b=2"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-unknown-OPEN_URL-macos",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "macos": {
+              "type": "OPEN_URL",
+              "url": "https://example.com/a?q=1&b=2",
+              "extra": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-OPEN_URL-windows",
+    "valid": true,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "windows": {
+              "type": "OPEN_URL",
+              "url": "https://example.com/a?q=1&b=2"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v20-reject-OPEN_URL-windows",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "windows": {
+              "type": "OPEN_URL",
+              "url": "https://example.com/a?q=1&b=2"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-unknown-OPEN_URL-windows",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "windows": {
+              "type": "OPEN_URL",
+              "url": "https://example.com/a?q=1&b=2",
+              "extra": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-OPEN_FILE-macos",
+    "valid": true,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FILE",
+          "executions": {
+            "macos": {
+              "type": "OPEN_FILE",
+              "path": "/tmp/hello world"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v20-reject-OPEN_FILE-macos",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FILE",
+          "executions": {
+            "macos": {
+              "type": "OPEN_FILE",
+              "path": "/tmp/hello world"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-unknown-OPEN_FILE-macos",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FILE",
+          "executions": {
+            "macos": {
+              "type": "OPEN_FILE",
+              "path": "/tmp/hello world",
+              "extra": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-OPEN_FILE-windows",
+    "valid": true,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FILE",
+          "executions": {
+            "windows": {
+              "type": "OPEN_FILE",
+              "path": "C:\\hello world"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v20-reject-OPEN_FILE-windows",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FILE",
+          "executions": {
+            "windows": {
+              "type": "OPEN_FILE",
+              "path": "C:\\hello world"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-unknown-OPEN_FILE-windows",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FILE",
+          "executions": {
+            "windows": {
+              "type": "OPEN_FILE",
+              "path": "C:\\hello world",
+              "extra": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-OPEN_FOLDER-macos",
+    "valid": true,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FOLDER",
+          "executions": {
+            "macos": {
+              "type": "OPEN_FOLDER",
+              "path": "/tmp/hello world"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v20-reject-OPEN_FOLDER-macos",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FOLDER",
+          "executions": {
+            "macos": {
+              "type": "OPEN_FOLDER",
+              "path": "/tmp/hello world"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-unknown-OPEN_FOLDER-macos",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FOLDER",
+          "executions": {
+            "macos": {
+              "type": "OPEN_FOLDER",
+              "path": "/tmp/hello world",
+              "extra": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-OPEN_FOLDER-windows",
+    "valid": true,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FOLDER",
+          "executions": {
+            "windows": {
+              "type": "OPEN_FOLDER",
+              "path": "C:\\hello world"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v20-reject-OPEN_FOLDER-windows",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FOLDER",
+          "executions": {
+            "windows": {
+              "type": "OPEN_FOLDER",
+              "path": "C:\\hello world"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-unknown-OPEN_FOLDER-windows",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FOLDER",
+          "executions": {
+            "windows": {
+              "type": "OPEN_FOLDER",
+              "path": "C:\\hello world",
+              "extra": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-SCRIPT-macos",
+    "valid": true,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "SCRIPT",
+          "executions": {
+            "macos": {
+              "type": "RUN_SCRIPT",
+              "path": "/tmp/test.sh"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v20-reject-SCRIPT-macos",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "SCRIPT",
+          "executions": {
+            "macos": {
+              "type": "RUN_SCRIPT",
+              "path": "/tmp/test.sh"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-unknown-SCRIPT-macos",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "SCRIPT",
+          "executions": {
+            "macos": {
+              "type": "RUN_SCRIPT",
+              "path": "/tmp/test.sh",
+              "extra": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-SCRIPT-windows",
+    "valid": true,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "SCRIPT",
+          "executions": {
+            "windows": {
+              "type": "RUN_SCRIPT",
+              "path": "C:\\test.ps1"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v20-reject-SCRIPT-windows",
+    "valid": false,
+    "profile": {
+      "version": "2.0",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "SCRIPT",
+          "executions": {
+            "windows": {
+              "type": "RUN_SCRIPT",
+              "path": "C:\\test.ps1"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-unknown-SCRIPT-windows",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "SCRIPT",
+          "executions": {
+            "windows": {
+              "type": "RUN_SCRIPT",
+              "path": "C:\\test.ps1",
+              "extra": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-url-reject-108",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "macos": {
+              "type": "OPEN_URL",
+              "url": "javascript:alert(1)"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-url-reject-109",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "macos": {
+              "type": "OPEN_URL",
+              "url": "file:///tmp/a"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-url-reject-110",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "macos": {
+              "type": "OPEN_URL",
+              "url": "https://"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-url-reject-111",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "macos": {
+              "type": "OPEN_URL",
+              "url": "https://example.com:0"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-url-reject-112",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "macos": {
+              "type": "OPEN_URL",
+              "url": "https://user@example.com"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-url-reject-113",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "macos": {
+              "type": "OPEN_URL",
+              "url": "https://example.com/a\nb"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-url-reject-114",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "macos": {
+              "type": "OPEN_URL",
+              "url": "https://example.com\\evil"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-url-reject-115",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_URL",
+          "executions": {
+            "macos": {
+              "type": "OPEN_URL",
+              "url": "https://example.com:65536"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-path-reject-116",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FILE",
+          "executions": {
+            "macos": {
+              "type": "OPEN_FILE",
+              "path": "relative.txt"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-path-reject-117",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FOLDER",
+          "executions": {
+            "windows": {
+              "type": "OPEN_FOLDER",
+              "path": "C:relative"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-path-reject-118",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "SCRIPT",
+          "executions": {
+            "macos": {
+              "type": "RUN_SCRIPT",
+              "path": "/tmp/test.py"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-path-reject-119",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "SCRIPT",
+          "executions": {
+            "windows": {
+              "type": "RUN_SCRIPT",
+              "path": "C:\\test.bat"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "v21-path-reject-120",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Extended",
+      "actions": [
+        {
+          "type": "OPEN_FILE",
+          "executions": {
+            "macos": {
+              "type": "OPEN_FILE",
+              "path": "/tmp/\u0000bad"
+            }
+          }
+        }
+      ]
+    }
   }
 ]

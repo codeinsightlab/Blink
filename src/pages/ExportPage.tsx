@@ -1,7 +1,11 @@
 import { CheckCircle2, Download, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PageHeader } from "../components/PageHeader";
-import { downloadProfiles, prepareProfileExport } from "../services/exportService";
+import {
+  downloadProfiles,
+  prepareProfileExport,
+  profileVersionLabel,
+} from "../services/exportService";
 import { useAppRegistryStore } from "../stores/appRegistryStore";
 import { useCommandRegistryStore } from "../stores/commandRegistryStore";
 import { useProfileStore } from "../stores/profileStore";
@@ -28,7 +32,7 @@ export function ExportPage() {
     <>
       <PageHeader
         title="批量导出 Profile"
-        description="每个能力编译为独立 Profile v2.0，并以 JSON 数组下载。"
+        description="每个能力编译为独立 Profile，并以 JSON 数组下载；版本以实际编译结果为准。"
         action={
           <button
             disabled={!prepared.success}
@@ -45,7 +49,7 @@ export function ExportPage() {
           ["Profile 数量", configured.length],
           ["动作数量", actions.length],
           ["涉及软件", appIds.size],
-          ["协议版本", "2.0"],
+          ["协议版本", profileVersionLabel(prepared.compiled)],
         ].map(([label, value]) => (
           <div className="panel p-4" key={label}>
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -65,7 +69,7 @@ export function ExportPage() {
           </div>
           <div className="mt-1 text-xs">
             {prepared.success
-              ? "数组中的每项都是独立、自包含的 KeyFlow Profile v2.0。"
+              ? "数组中的每项都是独立、自包含的 KeyFlow Profile，协议版本见各项 version 字段。"
               : prepared.errors.join(" · ")}
           </div>
         </div>

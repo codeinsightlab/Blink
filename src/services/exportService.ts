@@ -1,6 +1,10 @@
 import type { AppDefinition, CommandDefinition, Profile } from "@keyflow/contract";
 import type { ProfileDraft } from "../models/authoring";
-import { compileProfileDrafts } from "./profileCompiler";
+import { compileProfileDrafts } from "./profileCompiler.ts";
+
+export function profileVersionLabel(profiles: Pick<Profile, "version">[]): string {
+  return [...new Set(profiles.map((profile) => profile.version))].sort().join(" / ") || "—";
+}
 
 export function prepareProfileExport(
   drafts: ProfileDraft[],

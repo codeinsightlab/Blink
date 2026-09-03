@@ -1,4 +1,11 @@
-import type { LaunchAppExecution, SendHotkeyExecution } from "./execution.ts";
+import type {
+  LaunchAppExecution,
+  SendHotkeyExecution,
+  OpenUrlExecution,
+  OpenFileExecution,
+  OpenFolderExecution,
+  RunScriptExecution,
+} from "./execution.ts";
 
 export interface OpenAppAction {
   type: "OPEN_APP";
@@ -16,4 +23,12 @@ export interface CommandAction {
   };
 }
 
-export type Action = OpenAppAction | CommandAction;
+export type TargetActionType = "OPEN_URL" | "OPEN_FILE" | "OPEN_FOLDER" | "SCRIPT";
+type TargetAction<T, E> = { type: T; executions: { windows?: E; macos?: E } };
+export type Action =
+  | OpenAppAction
+  | CommandAction
+  | TargetAction<"OPEN_URL", OpenUrlExecution>
+  | TargetAction<"OPEN_FILE", OpenFileExecution>
+  | TargetAction<"OPEN_FOLDER", OpenFolderExecution>
+  | TargetAction<"SCRIPT", RunScriptExecution>;

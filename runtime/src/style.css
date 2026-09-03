@@ -39,6 +39,20 @@ body {
   min-width: 900px;
   min-height: 620px;
   background: var(--window-bg);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Desktop chrome is not selectable; editable fields and copyable data opt in. */
+input,
+textarea,
+[contenteditable="true"],
+.notice,
+.creator-target,
+.creator-message,
+.diagnostic-value {
+  -webkit-user-select: text;
+  user-select: text;
 }
 button,
 input {
@@ -186,6 +200,7 @@ button {
 }
 .main-content {
   min-width: 0;
+  position: relative;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -214,30 +229,10 @@ button {
   color: var(--text-muted);
   font-size: 12px;
 }
-.import-button {
-  height: 30px;
-  padding: 0 11px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 7px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04));
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.095);
-  color: #daddff;
-  font-size: 12px;
-  transition:
-    background 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease;
-}
-.import-button:hover {
-  border-color: rgba(201, 211, 255, 0.25);
-  background: linear-gradient(180deg, rgba(177, 190, 255, 0.2), rgba(143, 155, 226, 0.12));
-  color: #f4f5ff;
-}
 .deck-actions {
   display: flex;
   gap: 8px;
 }
-.manage-button,
 .delete-selected {
   height: 30px;
   padding: 0 10px;
@@ -246,12 +241,6 @@ button {
   background: rgba(255, 255, 255, 0.045);
   color: var(--text-secondary);
   font-size: 11px;
-}
-.manage-button:hover,
-.manage-button.is-active {
-  border-color: rgba(190, 201, 255, 0.22);
-  background: rgba(156, 170, 247, 0.12);
-  color: #e6eaff;
 }
 .delete-selected {
   height: 25px;
@@ -417,6 +406,23 @@ button {
 .command-icon svg {
   width: 100%;
   height: 100%;
+}
+.command-icon {
+  position: relative;
+}
+.native-app-icon {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  opacity: 0;
+  pointer-events: none;
+}
+.has-native-icon .native-app-icon {
+  opacity: 1;
+}
+.has-native-icon > svg {
+  visibility: hidden;
 }
 .more {
   width: 30px;
@@ -861,17 +867,66 @@ button {
   padding: 0 17px;
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--border-subtle);
   border-radius: 9px;
   font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
 }
-.import-button {
+.deck-actions .runtime-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+.deck-actions .primary-button {
   border-color: rgba(124, 112, 255, 0.5);
   background: linear-gradient(135deg, #6e66f7, #4c36e7);
   box-shadow:
     inset 0 1px rgba(255, 255, 255, 0.24),
     0 8px 24px rgba(54, 38, 198, 0.2);
   color: #fff;
+}
+.deck-actions .primary-button:hover:enabled {
+  background: linear-gradient(135deg, #7a72ff, #5b46f0);
+  border-color: rgba(164, 155, 255, 0.8);
+}
+.deck-actions .primary-button:active:enabled {
+  background: linear-gradient(135deg, #5e55de, #432fc8);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.deck-actions :is(.manage-button, .import-button) {
+  color: var(--text-secondary);
+  background: var(--surface);
+  box-shadow: none;
+}
+.deck-actions :is(.manage-button, .import-button):hover:enabled {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+  border-color: var(--border-highlight);
+}
+.deck-actions :is(.manage-button, .import-button):active:enabled,
+.deck-actions .manage-button.is-active:enabled {
+  color: var(--text-primary);
+  background: var(--surface-selected);
+  border-color: var(--border-highlight);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.deck-actions button:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 3px;
+}
+.deck-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 .grid-scroll {
   padding-top: 12px;
@@ -1363,4 +1418,171 @@ button {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.deck-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 0 var(--content-padding) 12px;
+}
+.deck-tabs button {
+  padding: 9px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.deck-tabs button[aria-selected="true"] {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+.deck-tabs button:focus-visible,
+.drag-handle:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
+}
+.deck-tabs small {
+  margin-left: 6px;
+  color: var(--text-muted);
+}
+.drag-handle {
+  touch-action: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 6px 2px;
+  font-size: 19px;
+  flex: 0 0 18px;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.command-row.is-sorting {
+  transition: transform 140ms ease-out;
+  will-change: transform;
+}
+.command-row.is-drag-source {
+  background: var(--surface-selected);
+  outline: 1px dashed var(--border-highlight);
+  outline-offset: -1px;
+}
+.command-row.is-drag-source > * {
+  visibility: hidden;
+}
+.command-row.command-drag-overlay {
+  position: fixed;
+  z-index: 1100;
+  pointer-events: none;
+  margin: 0;
+  border: 1px solid var(--border-highlight);
+  border-radius: var(--radius);
+  background: #282c3a;
+  box-shadow: 0 8px 22px #0005;
+  transition: none;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .command-row.is-sorting {
+    transition: none;
+  }
+}
+.runtime-shell .grid-scroll {
+  margin-bottom: 82px;
+  padding-bottom: 18px;
+}
+.runtime-shell .deck-tip {
+  position: absolute;
+  left: var(--content-padding);
+  right: var(--content-padding);
+  bottom: 22px;
+  margin: 0;
+  background: var(--window-bg);
+  min-height: 42px;
+}
+
+#runtime-language {
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--window-bg);
+  border: 1px solid var(--border-highlight);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+#runtime-language:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
+}
+.deck-tabs button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.deck-tabs button:disabled,
+.drag-handle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+@media (max-width: 1100px) {
+  .runtime-shell .main-header {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .runtime-shell .deck-actions {
+    flex-wrap: wrap;
+  }
+}
+.runtime-shell .notice {
+  bottom: 82px;
+  max-height: 30vh;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.creator-backdrop {
+  z-index: 1000;
+}
+
+.creator-dialog {
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.creator-dialog label {
+  color: var(--text-primary, #eee);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.creator-actions,
+.creator-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.creator-dialog button[aria-pressed="true"] {
+  outline: 2px solid #8d96fb;
+}
+
+.creator-dialog button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.creator-target,
+.creator-message {
+  overflow-wrap: anywhere;
+}
+
+.creator-dialog .creator-warning,
+.creator-dialog .creator-message {
+  color: #e8ba7e;
+}
+
+.creator-footer {
+  justify-content: flex-end;
 }
