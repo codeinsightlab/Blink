@@ -1,7 +1,27 @@
+# 依赖与构建产物
 node_modules/
 dist/
 target/
 *.tsbuildinfo
-.DS_Store
+
+# 文档（保持不提交原则）
 docs/
+
+# 环境变量与密钥（仅提交示例文件）
+.env
+.env.*
+!.env.example
+
+# 日志
+*.log
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+
+# AI 工具本地数据
 .workbuddy-ai/
+.workbuddy/
+
+
+code-review-2026-09-03.md
