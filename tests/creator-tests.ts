@@ -409,5 +409,17 @@ const toggleDraft = switchActionType(
 );
 assert.equal(toggleDraft.appPath, undefined);
 assert.equal(toggleDraft.capture.physicalInput, "F10");
+const windowsToggleDraft = switchActionType(
+  {
+    action: "COMMAND",
+    appPath: undefined,
+    target: "",
+    scriptConsent: false,
+    appChanged: false,
+    capture: { mode: null, physicalInput: "F10" },
+  },
+  "TOGGLE_APP",
+);
+assert.equal(windowsToggleDraft.action, "TOGGLE_APP");
 assert.equal(regenerateEditedProfile(toggle, 0, toggle, "macos").actions[0]?.type, "TOGGLE_APP");
 console.log("Toggle Creator producer/edit tests passed");

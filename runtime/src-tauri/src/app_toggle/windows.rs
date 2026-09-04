@@ -137,7 +137,22 @@ fn process_image(pid: u32) -> Result<String, AppControlError> {
         .replace('/', "\\")
         .to_ascii_lowercase())
 }
+
+fn snapshot_executable_name(entry: &ProcessEntry32W) -> String {
+    let length = entry
+        .sz_exe_file
+        .iter()
+        .position(|value| *value == 0)
+        .unwrap_or(entry.sz_exe_file.len());
+    String::from_utf16_lossy(&entry.sz_exe_file[..length]).to_ascii_lowercase()
+}
+
 fn matching_pids(target: &str) -> Result<HashSet<u32>, AppControlError> {
+    let target_name = Path::new(target)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(str::to_ascii_lowercase)
+        .ok_or(AppControlError::InvalidTarget)?;
     let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
     if snapshot == INVALID_HANDLE_VALUE {
         return Err(AppControlError::StateQueryFailed {
@@ -150,6 +165,15 @@ fn matching_pids(target: &str) -> Result<HashSet<u32>, AppControlError> {
     let mut matched = HashSet::new();
     let mut ok = unsafe { Process32FirstW(snapshot, &mut entry) };
     while ok != 0 {
+        // Toolhelp snapshots include unrelated and protected processes. Their
+        // basename cannot equal the selected executable, so they are not identity
+        // candidates and are never opened. PID 0 in particular always makes
+        // OpenProcess fail with ERROR_INVALID_PARAMETER.
+        if entry.th32_process_id == 0 || snapshot_executable_name(&entry) != target_name {
+            entry.dw_size = std::mem::size_of::<ProcessEntry32W>() as u32;
+            ok = unsafe { Process32NextW(snapshot, &mut entry) };
+            continue;
+        }
         match process_image(entry.th32_process_id) {
             Ok(path) if path == target => {
                 matched.insert(entry.th32_process_id);

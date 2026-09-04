@@ -365,9 +365,7 @@ export async function openRuntimeCreator(host: CreatorHost) {
             button.dataset.action === "OPEN_APP"
               ? action === "OPEN_APP" || action === "TOGGLE_APP"
                 ? action
-                : host.platform === "macos"
-                  ? "TOGGLE_APP"
-                  : "OPEN_APP"
+                : "OPEN_APP"
               : (button.dataset.action as Action["type"]),
           ));
         message = "";
