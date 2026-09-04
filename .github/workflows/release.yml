@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to build
+        required: true
+        default: v0.1.0
 
 permissions:
   contents: read
@@ -11,29 +17,85 @@ permissions:
 env:
   NODE_VERSION: "22"
   RUST_BACKTRACE: "1"
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
 
 jobs:
+  preflight:
+    name: Verify release tag and publishing credential
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out immutable release tag
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Verify checked-out source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          tag_target="$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")"
+          printf 'release tag: %s\ncheckout HEAD: %s\ntag target: %s\n' "${RELEASE_TAG}" "${actual_head}" "${tag_target}"
+          test "${actual_head}" = "${tag_target}"
+          if [[ "${RELEASE_TAG}" = "v0.1.0" ]]; then
+            test "${actual_head}" = "53fa73c05a3ef41e4d9f3e75028a29a8ab63f6b6"
+          fi
+
+      - name: Require cross-repository release token
+        env:
+          RELEASE_TOKEN: ${{ secrets.BLINK_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${RELEASE_TOKEN:-}"
+
   build-macos-arm64:
     name: Build macOS arm64 DMG
+    needs: preflight
     runs-on: macos-14
     timeout-minutes: 45
     steps:
       - name: Check out private source tag
         uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Verify checked-out source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_head="$(git rev-parse HEAD)"
+          tag_target="$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")"
+          printf 'release tag: %s\ncheckout HEAD: %s\ntag target: %s\n' "${RELEASE_TAG}" "${actual_head}" "${tag_target}"
+          test "${actual_head}" = "${tag_target}"
+          if [[ "${RELEASE_TAG}" = "v0.1.0" ]]; then
+            test "${actual_head}" = "53fa73c05a3ef41e4d9f3e75028a29a8ab63f6b6"
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: runtime/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            runtime/package-lock.json
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
 
-      - name: Install Runtime dependencies
+      - name: Install root workspace dependencies
+        run: npm ci
+
+      - name: Validate shared contract and Studio TypeScript
+        run: npm run typecheck
+
+      - name: Install independent Runtime dependencies
         working-directory: runtime
         run: npm ci
 
@@ -70,25 +132,51 @@ jobs:
 
   build-windows-x64:
     name: Build Windows x64 installers
+    needs: preflight
     runs-on: windows-2022
     timeout-minutes: 45
     steps:
       - name: Check out private source tag
         uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Verify checked-out source identity
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $actualHead = (git rev-parse HEAD).Trim()
+          $tagTarget = (git rev-list -n 1 "refs/tags/$env:RELEASE_TAG").Trim()
+          Write-Host "release tag: $env:RELEASE_TAG"
+          Write-Host "checkout HEAD: $actualHead"
+          Write-Host "tag target: $tagTarget"
+          if ($actualHead -ne $tagTarget) { throw 'Checked-out HEAD does not match the release tag target.' }
+          if ($env:RELEASE_TAG -eq 'v0.1.0' -and $actualHead -ne '53fa73c05a3ef41e4d9f3e75028a29a8ab63f6b6') {
+            throw 'v0.1.0 does not point to the immutable expected release commit.'
+          }
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: runtime/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            runtime/package-lock.json
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Install Runtime dependencies
+      - name: Install root workspace dependencies
+        run: npm ci
+
+      - name: Validate shared contract and Studio TypeScript
+        run: npm run typecheck
+
+      - name: Install independent Runtime dependencies
         working-directory: runtime
         run: npm ci
 
@@ -196,8 +284,8 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${GH_TOKEN:-}"
-          if gh release view "${GITHUB_REF_NAME}" --repo codeinsightlab/Blink-Releases >/dev/null 2>&1; then
-            echo "Release ${GITHUB_REF_NAME} already exists in codeinsightlab/Blink-Releases; refusing to overwrite it." >&2
+          if gh release view "${RELEASE_TAG}" --repo codeinsightlab/Blink-Releases >/dev/null 2>&1; then
+            echo "Release ${RELEASE_TAG} already exists in codeinsightlab/Blink-Releases; refusing to overwrite it." >&2
             exit 1
           fi
 
@@ -209,8 +297,8 @@ jobs:
           set -euo pipefail
           mapfile -t assets < <(find release-assets -maxdepth 1 -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \) -print | sort)
           assets+=("release-assets/checksums.txt")
-          gh release create "${GITHUB_REF_NAME}" "${assets[@]}" \
+          gh release create "${RELEASE_TAG}" "${assets[@]}" \
             --repo codeinsightlab/Blink-Releases \
             --target main \
-            --title "Blink ${GITHUB_REF_NAME}" \
+            --title "Blink ${RELEASE_TAG}" \
             --notes-file release-notes.md
