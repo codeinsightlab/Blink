@@ -384,12 +384,17 @@ const toggle = createToggleAppProfile({
 });
 assert.equal(toggle.version, "2.1");
 assert.equal(toggle.actions[0]?.type, "TOGGLE_APP");
+const windowsToggle = createToggleAppProfile({
+  name: "Toggle Windows app",
+  platform: "windows",
+  knownPaths: ["C:\\Program Files\\Example\\Example.exe"],
+});
+assert.deepEqual(windowsToggle.actions[0]?.executions.windows, {
+  type: "TOGGLE_APP",
+  knownPaths: ["C:\\Program Files\\Example\\Example.exe"],
+});
 assert.throws(() =>
-  createToggleAppProfile({
-    name: "Unsupported",
-    platform: "windows",
-    bundleIds: ["com.apple.TextEdit"],
-  }),
+  createToggleAppProfile({ name: "Invalid Windows Toggle", platform: "windows", bundleIds: ["x"] }),
 );
 const toggleDraft = switchActionType(
   {

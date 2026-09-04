@@ -318,7 +318,7 @@ export async function openRuntimeCreator(host: CreatorHost) {
         ${
           action === "OPEN_APP" || action === "TOGGLE_APP"
             ? `
-          ${host.platform === "macos" ? `<label><input id="app-toggle-enabled" type="checkbox" ${action === "TOGGLE_APP" ? "checked" : ""} ${busy || leftoverId ? "disabled" : ""}>${t("appToggleEnabled")}</label><p>${action === "TOGGLE_APP" ? t("toggleAppHint") : t("appOpenOnlyHint")}</p>` : ""}
+          <label><input id="app-toggle-enabled" type="checkbox" ${action === "TOGGLE_APP" ? "checked" : ""} ${busy || leftoverId ? "disabled" : ""}>${t("appToggleEnabled")}</label><p>${action === "TOGGLE_APP" ? t("toggleAppHint") : t("appOpenOnlyHint")}</p>
           <button data-pick ${busy || leftoverId ? "disabled" : ""}>${t("pickAppButton")}</button>
           <p class="creator-target">${escapeHtml(appPath ?? (originalExecution?.type === "LAUNCH_APP" || originalExecution?.type === "TOGGLE_APP" ? t("keepLocator") : host.platform === "macos" ? t("pickerMacHint") : t("pickerWindowsHint")))}</p>
         `
