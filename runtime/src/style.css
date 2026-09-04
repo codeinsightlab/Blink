@@ -1512,15 +1512,23 @@ button:focus-visible {
   color: var(--text-muted);
 }
 .drag-handle {
+  width: 24px;
+  height: 32px;
   touch-action: none;
   border: 0;
+  border-radius: 5px;
   background: transparent;
   color: var(--text-muted);
   cursor: grab;
-  padding: 6px 2px;
-  font-size: 19px;
-  flex: 0 0 18px;
+  padding: 6px 4px;
+  flex: 0 0 24px;
 }
+.drag-handle svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.drag-handle:hover:not(:disabled) { background: rgba(255, 255, 255, 0.065); color: var(--text-secondary); }
 .drag-handle:active {
   cursor: grabbing;
 }

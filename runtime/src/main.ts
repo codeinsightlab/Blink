@@ -313,7 +313,7 @@ function externalRow(item: RuntimeProfile, platform: RuntimePlatform) {
   const selecting = editingExternal;
   const selected = selectedExternalIds.has(item.id);
   return `<article data-row-id="${escapeHtml(item.id)}" class="command-row ${bindingProfileId === item.id ? "is-binding" : ""} ${selected ? "is-selected" : ""}">
-    <div class="row-identity"><button class="drag-handle" ${bindingProfileId || creatorOpen ? "disabled" : ""} data-drag-id="${escapeHtml(item.id)}" aria-label="${t("dragSort")}" title="${t("dragSort")}">⠿</button><span class="command-icon tone-external">${profileIcon(item)}</span><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.description ?? t("actionDescription"))}</p></div></div>
+    <div class="row-identity"><button class="drag-handle" ${bindingProfileId || creatorOpen ? "disabled" : ""} data-drag-id="${escapeHtml(item.id)}" aria-label="${t("dragSort")}" title="${t("dragSort")}">${RuntimeIcon("drag")}</button><span class="command-icon tone-external">${profileIcon(item)}</span><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.description ?? t("actionDescription"))}</p></div></div>
     <span class="source-label">${RuntimeIcon("external")}${t("userProfile")}</span>
     <div class="row-binding">${bindingMarkup(item, platform)}</div>
     <div class="row-tools">${selecting ? `<button class="profile-select" data-select-external="${item.id}" aria-pressed="${selected}">${selected ? "✓" : ""}</button>` : `<button class="more ${menuOpen ? "is-open" : ""}" data-menu="${item.id}" aria-label="${t("moreActions")}">${RuntimeIcon("more")}</button>`}</div>

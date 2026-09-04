@@ -13,6 +13,7 @@ import {
   Ellipsis,
   FileInput,
   FolderOpen,
+  GripVertical,
   Image,
   Info,
   LayoutGrid,
@@ -63,7 +64,8 @@ export type RuntimeIconName =
   | "rename"
   | "delete"
   | "info"
-  | "external";
+  | "external"
+  | "drag";
 
 const ICONS: Record<Exclude<RuntimeIconName, "brand">, IconNode> = {
   activity: Activity,
@@ -95,6 +97,7 @@ const ICONS: Record<Exclude<RuntimeIconName, "brand">, IconNode> = {
   delete: Trash2,
   info: Info,
   external: Link,
+  drag: GripVertical,
 };
 
 export function RuntimeIcon(name: RuntimeIconName, className = "") {
