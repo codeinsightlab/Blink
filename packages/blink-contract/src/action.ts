@@ -18,7 +18,7 @@ export interface OpenAppAction {
 
 export interface ToggleAppAction {
   type: "TOGGLE_APP";
-  executions: { macos: ToggleAppExecution; windows?: never };
+  executions: { macos?: ToggleAppExecution; windows?: ToggleAppExecution };
 }
 
 export interface CommandAction {

@@ -169,6 +169,14 @@ pub fn valid_target_path(platform: &str, path: &str) -> bool {
         })
 }
 
+fn valid_windows_toggle_target(path: &str) -> bool {
+    let normalized = path.replace('/', "\\").to_ascii_lowercase();
+    valid_target_path("windows", path)
+        && normalized.ends_with(".exe")
+        && !normalized.contains("\\program files\\windowsapps\\")
+        && !normalized.contains("\\appdata\\local\\microsoft\\windowsapps\\")
+}
+
 impl Profile {
     pub fn executions_for(&self, platform: &str) -> Result<Vec<Execution>, String> {
         self.actions
@@ -245,6 +253,16 @@ impl Profile {
                             valid_target_path("macos", s)
                                 && s.to_ascii_lowercase().ends_with(".app")
                         }) => {}
+                    (
+                        Action::ToggleApp { .. },
+                        Execution::ToggleApp {
+                            bundle_ids,
+                            known_paths,
+                        },
+                    ) if platform == "windows"
+                        && bundle_ids.is_empty()
+                        && known_paths.len() == 1
+                        && valid_windows_toggle_target(&known_paths[0]) => {}
                     (Action::OpenUrl { .. }, Execution::OpenUrl { url }) if valid_http_url(url) => {
                     }
                     (Action::OpenFile { .. }, Execution::OpenFile { path })
@@ -432,7 +450,21 @@ fn map_json_error(error: serde_json::Error) -> ProfileError {
 
 #[cfg(test)]
 mod tests {
-    use super::{Action, Execution, Profile};
+    use super::{valid_windows_toggle_target, Action, Execution, Profile};
+
+    #[test]
+    fn windows_toggle_accepts_only_traditional_executables() {
+        assert!(valid_windows_toggle_target(
+            "C:\\Program Files\\Example\\Example.exe"
+        ));
+        assert!(!valid_windows_toggle_target(
+            "C:\\Program Files\\WindowsApps\\Example.exe"
+        ));
+        assert!(!valid_windows_toggle_target(
+            "C:\\Users\\a\\AppData\\Local\\Microsoft\\WindowsApps\\Example.exe"
+        ));
+        assert!(!valid_windows_toggle_target("C:\\Example\\launcher.cmd"));
+    }
 
     #[test]
     fn parses_handwritten_v2_profile_without_registry_ids() {

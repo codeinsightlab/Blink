@@ -3072,5 +3072,42 @@
         }
       ]
     }
+  },
+  {
+    "id": "toggle-windows-exe",
+    "valid": true,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle Windows app",
+      "actions": [
+        {
+          "type": "TOGGLE_APP",
+          "executions": {
+            "windows": {
+              "type": "TOGGLE_APP",
+              "knownPaths": ["C:\\Program Files\\Example\\Example.exe"]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "toggle-windows-not-exe",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle Windows app",
+      "actions": [{"type":"TOGGLE_APP","executions":{"windows":{"type":"TOGGLE_APP","knownPaths":["C:\\Example\\launcher.cmd"]}}}]
+    }
+  },
+  {
+    "id": "toggle-windows-alias",
+    "valid": false,
+    "profile": {
+      "version": "2.1",
+      "name": "Toggle Windows app",
+      "actions": [{"type":"TOGGLE_APP","executions":{"windows":{"type":"TOGGLE_APP","knownPaths":["C:\\Users\\test\\AppData\\Local\\Microsoft\\WindowsApps\\example.exe"]}}}]
+    }
   }
 ]

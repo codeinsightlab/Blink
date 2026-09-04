@@ -66,7 +66,7 @@ export const openFolderExecutionSchema = z
 export const runScriptExecutionSchema = z
   .object({ type: z.literal("RUN_SCRIPT"), path: targetPath })
   .strict();
-export const toggleAppExecutionSchema = z
+export const macosToggleAppExecutionSchema = z
   .object({
     type: z.literal("TOGGLE_APP"),
     bundleIds: z
@@ -91,6 +91,31 @@ export const toggleAppExecutionSchema = z
   })
   .strict()
   .refine((e) => Boolean(e.bundleIds?.length || e.knownPaths?.length), "请选择 macOS 应用");
+
+// Windows V1 deliberately accepts only a canonical executable path.  Aliases,
+// package identities and launcher indirection are not a safe process identity.
+export const windowsToggleAppExecutionSchema = z
+  .object({
+    type: z.literal("TOGGLE_APP"),
+    knownPaths: z
+      .array(z.string().regex(/^(?:[A-Za-z]:[\\/]|\\\\[^\\]+\\[^\\]+).*\.exe$/i))
+      .length(1),
+  })
+  .strict()
+  .refine(
+    (execution) => {
+      const path = execution.knownPaths[0]?.replaceAll("/", "\\").toLowerCase() ?? "";
+      return !path.includes("\\program files\\windowsapps\\") && !path.includes("\\appdata\\local\\microsoft\\windowsapps\\");
+    },
+    "Windows Toggle App 不支持 packaged 应用或 App Execution Alias",
+  );
+
+// Retained as the public execution-union member for callers that validate an
+// execution before its platform is known.
+export const toggleAppExecutionSchema = z.union([
+  macosToggleAppExecutionSchema,
+  windowsToggleAppExecutionSchema,
+]);
 
 export const executionSchema = z.union([
   toggleAppExecutionSchema,

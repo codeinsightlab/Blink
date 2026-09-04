@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   toggleAppExecutionSchema,
+  macosToggleAppExecutionSchema,
+  windowsToggleAppExecutionSchema,
   launchAppExecutionSchema,
   sendHotkeyExecutionSchema,
   openUrlExecutionSchema,
@@ -33,7 +35,10 @@ export const actionSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("TOGGLE_APP"),
-      executions: z.object({ macos: toggleAppExecutionSchema }).strict(),
+      executions: z
+        .object({ macos: macosToggleAppExecutionSchema.optional(), windows: windowsToggleAppExecutionSchema.optional() })
+        .strict()
+        .refine((value) => Boolean(value.macos || value.windows), "至少需要一个平台实现"),
     })
     .strict(),
   openAppActionSchema,

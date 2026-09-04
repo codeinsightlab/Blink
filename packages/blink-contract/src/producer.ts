@@ -64,8 +64,10 @@ export function createToggleAppProfile(
     "name" | "description" | "platform" | "bundleIds" | "knownPaths"
   >,
 ): Profile {
-  if (input.platform !== "macos") throw new Error("Toggle App is supported only on macOS");
-  const { name, description, bundleIds, knownPaths } = input;
+  const { name, description, platform, bundleIds, knownPaths } = input;
+  if (platform === "windows" && (bundleIds?.length || knownPaths?.length !== 1)) {
+    throw new Error("Windows Toggle App requires exactly one executable path");
+  }
   return createProfile({
     name,
     ...(description === undefined ? {} : { description }),
@@ -73,9 +75,9 @@ export function createToggleAppProfile(
       {
         type: "TOGGLE_APP",
         executions: {
-          macos: {
+          [platform]: {
             type: "TOGGLE_APP",
-            ...(bundleIds === undefined ? {} : { bundleIds }),
+            ...(platform === "macos" && bundleIds !== undefined ? { bundleIds } : {}),
             ...(knownPaths === undefined ? {} : { knownPaths }),
           },
         },

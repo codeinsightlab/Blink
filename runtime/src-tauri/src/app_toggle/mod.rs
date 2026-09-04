@@ -1,6 +1,9 @@
 //! Runtime-only state. No serialization or remembered visibility.
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "windows")]
+mod windows;
+mod windows_logic;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppState {
     NotRunning,
@@ -29,6 +32,22 @@ pub enum AppControlError {
     RevealFailed(String),
     #[error("ConcealFailed")]
     ConcealFailed,
+    #[error("PermissionDenied during {operation}: {win32_error}")]
+    PermissionDenied {
+        operation: &'static str,
+        win32_error: u32,
+    },
+    #[error("StateQueryFailed during {operation}: {win32_error}")]
+    StateQueryFailed {
+        operation: &'static str,
+        win32_error: u32,
+    },
+    #[error("AmbiguousWindows: {count}")]
+    AmbiguousWindows { count: usize },
+    #[error("FocusDenied")]
+    FocusDenied,
+    #[error("UnsupportedTarget: {reason}")]
+    UnsupportedTarget { reason: &'static str },
 }
 pub trait DesktopAppController {
     fn query_state(&self, target: &AppTarget) -> Result<AppState, AppControlError>;
@@ -65,7 +84,9 @@ impl AppToggleService {
 pub fn dispatch(bundle_ids: &[String], paths: &[String]) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     let result = macos::toggle(bundle_ids, paths);
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    let result = windows::toggle(bundle_ids, paths);
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let result: Result<(), AppControlError> = {
         let _ = (bundle_ids, paths);
         Err(AppControlError::Unsupported)
