@@ -289,15 +289,14 @@ export async function openRuntimeCreator(host: CreatorHost) {
         <button data-physical ${busy || leftoverId || host.edit ? "disabled" : ""}>
           ${capture.mode === "physical" ? t("pressPhysical") : escapeHtml(capture.physicalInput ?? (host.edit ? t("unbound") : t("capturePhysical")))}
         </button>
-        ${host.edit ? `<p>${t("editHint")}</p>${host.edit.profile.actions.length > 1 ? `<label for="edit-action-index">${t("chooseEditAction")}</label><select id="edit-action-index" ${busy ? "disabled" : ""}>${host.edit.profile.actions.map((entry, index) => `<option value="${index}" ${index === actionIndex ? "selected" : ""}>${t("actionIndexPrefix")}${index + 1}${t("actionIndexSuffix")}${{ OPEN_APP: t("openApp"), TOGGLE_APP: t("toggleApp"), COMMAND: t("hotkey"), OPEN_URL: t("openUrl"), OPEN_FILE: t("openFile"), OPEN_FOLDER: t("openFolder"), SCRIPT: t("runScript") }[entry.type]}</option>`).join("")}</select>` : ""}` : ""}
+        ${host.edit ? `<p>${t("editHint")}</p>${host.edit.profile.actions.length > 1 ? `<label for="edit-action-index">${t("chooseEditAction")}</label><select id="edit-action-index" ${busy ? "disabled" : ""}>${host.edit.profile.actions.map((entry, index) => `<option value="${index}" ${index === actionIndex ? "selected" : ""}>${t("actionIndexPrefix")}${index + 1}${t("actionIndexSuffix")}${{ OPEN_APP: t("openApp"), TOGGLE_APP: t("openApp"), COMMAND: t("hotkey"), OPEN_URL: t("openUrl"), OPEN_FILE: t("openFile"), OPEN_FOLDER: t("openFolder"), SCRIPT: t("runScript") }[entry.type]}</option>`).join("")}</select>` : ""}` : ""}
         ${existing ? `<p class="creator-warning">${t("conflictPrefix")}${escapeHtml(existing.name)}${t("conflictSuffix")}</p>` : ""}
         ${
           host.edit || capture.physicalInput
             ? `
           <label>${t("chooseAction")}</label>
           <div class="creator-actions">
-            <button data-action="OPEN_APP" aria-pressed="${action === "OPEN_APP"}" ${busy || leftoverId ? "disabled" : ""}>${t("openApp")}</button>
-            ${host.platform === "macos" ? `<button data-action="TOGGLE_APP" aria-pressed="${action === "TOGGLE_APP"}" ${busy || leftoverId ? "disabled" : ""}>${t("toggleApp")}</button>` : ""}
+            <button data-action="OPEN_APP" aria-pressed="${action === "OPEN_APP" || action === "TOGGLE_APP"}" ${busy || leftoverId ? "disabled" : ""}>${t("openApp")}</button>
             <button data-action="COMMAND" aria-pressed="${action === "COMMAND"}" ${busy || leftoverId ? "disabled" : ""}>${t("hotkey")}</button>
             ${(
               [
@@ -319,7 +318,7 @@ export async function openRuntimeCreator(host: CreatorHost) {
         ${
           action === "OPEN_APP" || action === "TOGGLE_APP"
             ? `
-          ${action === "TOGGLE_APP" ? `<p>${t("toggleAppHint")}</p>` : ""}
+          ${host.platform === "macos" ? `<label><input id="app-toggle-enabled" type="checkbox" ${action === "TOGGLE_APP" ? "checked" : ""} ${busy || leftoverId ? "disabled" : ""}>${t("appToggleEnabled")}</label><p>${action === "TOGGLE_APP" ? t("toggleAppHint") : t("appOpenOnlyHint")}</p>` : ""}
           <button data-pick ${busy || leftoverId ? "disabled" : ""}>${t("pickAppButton")}</button>
           <p class="creator-target">${escapeHtml(appPath ?? (originalExecution?.type === "LAUNCH_APP" || originalExecution?.type === "TOGGLE_APP" ? t("keepLocator") : host.platform === "macos" ? t("pickerMacHint") : t("pickerWindowsHint")))}</p>
         `
@@ -363,12 +362,25 @@ export async function openRuntimeCreator(host: CreatorHost) {
         ({ action, appPath, target, scriptConsent, originalExecution, appChanged, capture } =
           switchActionType(
             { action, appPath, target, scriptConsent, originalExecution, appChanged, capture },
-            button.dataset.action as Action["type"],
+            button.dataset.action === "OPEN_APP"
+              ? action === "OPEN_APP" || action === "TOGGLE_APP"
+                ? action
+                : host.platform === "macos"
+                  ? "TOGGLE_APP"
+                  : "OPEN_APP"
+              : (button.dataset.action as Action["type"]),
           ));
         message = "";
         render();
       }),
     );
+    root
+      .querySelector<HTMLInputElement>("#app-toggle-enabled")
+      ?.addEventListener("change", (event) => {
+        action = (event.target as HTMLInputElement).checked ? "TOGGLE_APP" : "OPEN_APP";
+        message = "";
+        render();
+      });
     root.querySelector("[data-hotkey]")?.addEventListener("click", () => {
       capture = { ...capture, mode: "hotkey", error: undefined };
       message = "";
@@ -408,7 +420,7 @@ export async function openRuntimeCreator(host: CreatorHost) {
       appChanged = true;
       if (!name.trim())
         name =
-          (action === "TOGGLE_APP" ? t("togglePrefix") : t("openPrefix")) +
+          t("openPrefix") +
           path
             .split(/[\\/]/)
             .pop()!
@@ -449,17 +461,30 @@ export async function openRuntimeCreator(host: CreatorHost) {
     let profile: Profile;
     try {
       if (action === "TOGGLE_APP") {
-        if (!appPath && !(host.edit && !appChanged && originalExecution?.type === "TOGGLE_APP"))
+        if (
+          !appPath &&
+          !(
+            host.edit &&
+            !appChanged &&
+            (originalExecution?.type === "TOGGLE_APP" || originalExecution?.type === "LAUNCH_APP")
+          )
+        )
           throw new Error(t("chooseAppFirst"));
         profile = createToggleAppProfile({
           name,
           platform: host.platform,
-          ...(host.edit && !appChanged && originalExecution?.type === "TOGGLE_APP"
+          ...(host.edit &&
+          !appChanged &&
+          (originalExecution?.type === "TOGGLE_APP" || originalExecution?.type === "LAUNCH_APP")
             ? { bundleIds: originalExecution.bundleIds, knownPaths: originalExecution.knownPaths }
             : { knownPaths: [appPath!] }),
         });
       } else if (action === "OPEN_APP") {
-        if (host.edit && !appChanged && originalExecution?.type === "LAUNCH_APP") {
+        if (
+          host.edit &&
+          !appChanged &&
+          (originalExecution?.type === "LAUNCH_APP" || originalExecution?.type === "TOGGLE_APP")
+        ) {
           profile = createOpenAppProfile({ ...originalExecution, name, platform: host.platform });
         } else {
           if (!appPath) throw new Error(t("chooseAppFirst"));

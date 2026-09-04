@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { AppWindow, Globe, Terminal, Command, Repeat2, ArrowRight } from "lucide-react";
-import { copy, labels, productViews, showcaseLabels } from "./content";
-const actionIcons = [AppWindow, Globe, Terminal, Command, Repeat2];
+import { productViews, showcaseLabels } from "./content";
 
 /** Explicit user-controlled views: no timer, autoplay or external carousel dependency. */
 export function ProductShowcase() {
@@ -28,36 +26,24 @@ export function ProductShowcase() {
       </div>
       <div className="showcase-layout" id="product-view" aria-live="polite">
         <figure className="showcase-media">
-          <div className="showcase-stage" key={view.id}>
-            {view.image ? (
-              <img
-                src={view.image}
-                alt={view.alt}
-                width={view.id === "commands" ? 1280 : 1493}
-                height={view.id === "commands" ? 720 : 1015}
-              />
-            ) : (
-              <div className="action-preview">
-                <h3>{showcaseLabels.actionTitle}</h3>
-                <p>{showcaseLabels.actionNote}</p>
-                <div className="action-bindings">
-                  {copy.features.map(([, title, , status], index) => {
-                    const Icon = actionIcons[index];
-                    return (
-                      <div className="action-binding" key={title}>
-                        <kbd>{showcaseLabels.binding}</kbd>
-                        <ArrowRight aria-hidden="true" size={18} />
-                        <span>
-                          <Icon aria-hidden="true" size={22} />
-                          {title}
-                        </span>
-                        {status === labels.soon && <small className="label">{labels.soon}</small>}
-                      </div>
-                    );
-                  })}
+          <div className={`showcase-stage stage-${view.id}`} key={view.id}>
+            <div className={`showcase-screens screens-${view.images.length}`}>
+              {view.images.map((image, index) => (
+                <div className="showcase-screen" key={image.src}>
+                  {view.images.length > 1 && (
+                    <span className="screen-state">{index === 0 ? "捕获中" : "已绑定"}</span>
+                  )}
+                  <img
+                    className="showcase-image"
+                    src={image.src}
+                    alt={image.alt}
+                    width="1280"
+                    height="720"
+                    fetchPriority={selected === 0 ? "high" : "auto"}
+                  />
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
           <figcaption>{view.caption}</figcaption>
         </figure>

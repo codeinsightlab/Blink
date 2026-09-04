@@ -193,5 +193,7 @@
   "toggleApp": "Toggle App",
   "toggleAppHint": "Open or bring the app to the front; hide it when it is already in front.",
   "togglePrefix": "Toggle ",
-  "toggleAppFailed": "Unable to toggle this app. Check its location and system permissions."
+  "toggleAppFailed": "Unable to toggle this app. Check its location and system permissions.",
+  "appToggleEnabled": "Press again to hide when the app is in front",
+  "appOpenOnlyHint": "Always open or bring the app to the front, without hiding it."
 }

@@ -131,6 +131,17 @@ fn windows(pid: i32, restore: bool) -> Result<(usize, usize), String> {
     }
     Ok((usable, minimized))
 }
+fn merge_window_evidence(
+    result: Result<(usize, usize), String>,
+    visible: bool,
+) -> Result<(usize, usize), String> {
+    match result {
+        Ok((0, 0)) if visible => Ok((1, 0)),
+        result @ Ok(_) => result,
+        Err(_) if visible => Ok((1, 0)),
+        error @ Err(_) => error,
+    }
+}
 fn normalize(hidden: bool, active: bool, windows: Result<(usize, usize), String>) -> AppState {
     if hidden {
         return AppState::Hidden;
@@ -225,16 +236,24 @@ impl DesktopAppController for MacDesktopAppController {
         if pid <= 0 {
             return Ok(AppState::Unknown);
         }
-        let window_state = windows(pid, false).or_else(|error| {
-            eprintln!("toggle_app ax_query_degraded={error}");
-            if has_visible_window(pid) {
-                Ok((1, 0))
-            } else {
-                Err(error)
-            }
-        });
-        let state = normalize(app.isHidden(), app.isActive(), window_state);
-        Ok(state)
+        let visible_window = has_visible_window(pid);
+        let ax_windows = windows(pid, false);
+        if ax_windows.as_ref().is_ok_and(|value| *value == (0, 0)) && visible_window {
+            eprintln!("toggle_app ax_windows_empty_cg_visible=true");
+        } else if let Err(error) = &ax_windows {
+            eprintln!("toggle_app ax_query_degraded={error} cg_visible={visible_window}");
+        }
+        let window_state = merge_window_evidence(ax_windows, visible_window);
+        let frontmost = NSWorkspace::sharedWorkspace().frontmostApplication();
+        let active = frontmost
+            .as_ref()
+            .is_some_and(|front| front.processIdentifier() == pid);
+        eprintln!("toggle_app bundle_id={} pid={pid} is_active={} frontmost_pid={:?} hidden={} windows={window_state:?}", target.bundle_id, app.isActive(), frontmost.as_ref().map(|front| front.processIdentifier()), app.isHidden());
+        Ok(if frontmost.is_none() {
+            AppState::Unknown
+        } else {
+            normalize(app.isHidden(), active, window_state)
+        })
     }
     fn launch(&self, target: &AppTarget) -> Result<(), AppControlError> {
         let mut command = Command::new("/usr/bin/open");
@@ -283,11 +302,28 @@ impl DesktopAppController for MacDesktopAppController {
             app.activateWithOptions(NSApplicationActivationOptions::ActivateIgnoringOtherApps);
         let unhidden = Self::wait_hidden(&target.bundle_id, false);
         eprintln!("toggle_app unhide_accepted={unhide_accepted} observed_unhidden={unhidden} activation_accepted={activated}");
-        if activated && unhidden {
+        let focus_deadline = Instant::now() + Duration::from_millis(700);
+        let focused = loop {
+            if NSWorkspace::sharedWorkspace()
+                .frontmostApplication()
+                .is_some_and(|front| front.processIdentifier() == app.processIdentifier())
+            {
+                break true;
+            }
+            if Instant::now() >= focus_deadline {
+                break false;
+            }
+            thread::sleep(Duration::from_millis(50));
+        };
+        eprintln!(
+            "toggle_app observed_frontmost={focused} bundle_id={}",
+            target.bundle_id
+        );
+        if unhidden && focused {
             Ok(())
         } else {
             Err(AppControlError::RevealFailed(format!(
-                "unhidden={unhidden} activation_accepted={activated}"
+                "unhidden={unhidden} activation_accepted={activated} observed_frontmost={focused}"
             )))
         }
     }
@@ -411,7 +447,35 @@ mod tests {
         });
     }
     #[test]
+    #[ignore = "Temporarily hides and restores selected app; requires BLINK_TOGGLE_REAL_APP"]
+    fn native_real_app_focus_hide_restore() {
+        let path = std::env::var("BLINK_TOGGLE_REAL_APP").unwrap();
+        autoreleasepool(|_| {
+            let target = MacDesktopAppController::resolve(&[], &[path]).unwrap();
+            let controller = MacDesktopAppController;
+            controller.reveal(&target).unwrap();
+            assert_eq!(
+                controller.query_state(&target).unwrap(),
+                AppState::Foreground
+            );
+            AppToggleService::toggle(&controller, &target).unwrap();
+            assert_eq!(controller.query_state(&target).unwrap(), AppState::Hidden);
+            controller.reveal(&target).unwrap();
+            assert_eq!(
+                controller.query_state(&target).unwrap(),
+                AppState::Foreground
+            );
+        });
+    }
+    #[test]
     fn mixed_windows_and_missing_permission_are_conservative() {
+        assert_eq!(merge_window_evidence(Ok((0, 0)), true), Ok((1, 0)));
+        assert_eq!(merge_window_evidence(Ok((0, 2)), true), Ok((0, 2)));
+        assert_eq!(
+            merge_window_evidence(Err("denied".into()), true),
+            Ok((1, 0))
+        );
+        assert!(merge_window_evidence(Err("denied".into()), false).is_err());
         assert_eq!(normalize(false, true, Ok((1, 1))), AppState::Foreground);
         assert_eq!(normalize(false, false, Ok((1, 1))), AppState::Background);
         assert_eq!(normalize(false, true, Ok((0, 1))), AppState::Minimized);

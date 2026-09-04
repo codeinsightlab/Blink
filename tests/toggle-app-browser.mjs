@@ -41,10 +41,15 @@ try {
   }
   await open("macos");
   await page.keyboard.press("F10");
-  await page.locator('[data-action="TOGGLE_APP"]').click();
-  assert.match(await page.locator(".creator-dialog").textContent(), /快速切换应用/);
-  assert.match(await page.locator(".creator-dialog").textContent(), /应用已在前台时将其隐藏/);
+  await page.locator('[data-action="OPEN_APP"]').click();
+  assert.equal(await page.locator('[data-action="TOGGLE_APP"]').count(), 0);
+  assert.match(await page.locator(".creator-dialog").textContent(), /打开应用/);
+  assert.match(await page.locator(".creator-dialog").textContent(), /应用在前台时，再按一次隐藏/);
   await page.locator("[data-pick]").click();
+  assert.equal(await page.locator("#app-toggle-enabled").isChecked(), true);
+  await page.locator("#app-toggle-enabled").uncheck();
+  assert.match(await page.locator(".creator-target").textContent(), /TextEdit.app/);
+  await page.locator("#app-toggle-enabled").check();
   await page.locator("[data-save]").click();
   await page.waitForFunction(() => window.savedToggle !== null);
   const profile = await page.evaluate(() => window.savedToggle);
@@ -57,6 +62,8 @@ try {
   await open("windows");
   await page.keyboard.press("F10");
   assert.equal(await page.locator('[data-action="TOGGLE_APP"]').count(), 0);
+  await page.locator('[data-action="OPEN_APP"]').click();
+  assert.equal(await page.locator("#app-toggle-enabled").count(), 0);
   console.log("Toggle Creator browser test passed (mock native APIs)");
 } finally {
   await browser.close();

@@ -17,10 +17,10 @@ export const copy = {
       title: "从灵感，到代码。少几个点击。",
       description: "为你的工作流准备一组专属按键。编辑器、终端和开发页面，各就各位。",
       items: [
-        ["F13", "VS Code", "打开编辑器", "code"],
-        ["F14", "Terminal", "进入终端", "terminal"],
-        ["F15", "GitHub", "查看代码仓库", "github"],
-        ["F16", "localhost", "打开本地页面", "globe"],
+        ["自定义按键", "VS Code", "打开编辑器", "code"],
+        ["自定义按键", "Terminal", "进入终端", "terminal"],
+        ["自定义按键", "GitHub", "查看代码仓库", "github"],
+        ["自定义按键", "localhost", "打开本地页面", "globe"],
       ],
     },
     {
@@ -29,10 +29,10 @@ export const copy = {
       title: "每天的高频后台，触手可及。",
       description: "不用再找收藏夹，把每天都会打开的工具直接放到键盘上。",
       items: [
-        ["F13", "店铺后台", "打开店铺页面", "store"],
-        ["F14", "客服系统", "进入客服工作台", "message"],
-        ["F15", "ERP / OMS", "打开管理后台", "layout"],
-        ["F16", "数据看板", "查看经营数据", "chart"],
+        ["你的按键", "店铺后台", "打开店铺页面", "store"],
+        ["你的按键", "客服系统", "进入客服工作台", "message"],
+        ["你的按键", "ERP / OMS", "打开管理后台", "layout"],
+        ["你的按键", "数据看板", "查看经营数据", "chart"],
       ],
     },
     {
@@ -41,10 +41,10 @@ export const copy = {
       title: "少找一个窗口，多留一点心流。",
       description: "减少寻找窗口和重复点击，把注意力留给真正的工作。",
       items: [
-        ["F13", "邮箱", "打开收件箱", "mail"],
-        ["F14", "Notion", "进入笔记空间", "file"],
-        ["F15", "ChatGPT", "打开常用应用", "message"],
-        ["F16", "工作文件夹", "打开本地目录", "folder"],
+        ["已绑定按键", "邮箱", "打开收件箱", "mail"],
+        ["已绑定按键", "Notion", "进入笔记空间", "file"],
+        ["已绑定按键", "ChatGPT", "打开常用应用", "message"],
+        ["已绑定按键", "工作文件夹", "打开本地目录", "folder"],
       ],
     },
   ],
@@ -95,14 +95,17 @@ export const labels = {
   toggleReleaseNote: "功能开发中，稳定版本确认后开放。",
   toggleExample: "以 ChatGPT 为例",
   toggleDiagram: "行为示意",
-  toggleKey: "F13",
+  toggleKey: "你的按键",
   toggleFooter: "随叫随到，也懂适时退场。",
-  keysEyebrow: "GIVE EVERY KEY A PURPOSE",
-  keysTitle: "那些闲着的按键，",
-  keysTitleAccent: "可以很有用。",
-  keysList: "F13、F14、F15、F16……",
-  keysDescription: "让少用的功能键，成为你的常用入口。",
-  keysNote: "映射示例 · 适用于系统可识别、Blink 可监听的按键",
+  keysEyebrow: "KEY TO APP INTERACTION",
+  keysTitle: "按下一个键，",
+  keysTitleAccent: "让应用立刻回应。",
+  keysDescription:
+    "Blink 让一个按键直接对应一个软件结果。打开、切换、收起或触发，都可以变成手边的一个动作。",
+  keysNote: "每个画面都是一个独立动作示例；设备需能向系统发送可识别按键。",
+  keyboardStoryLabel: "键盘与应用互动故事",
+  macroPadAlt: "三键 Macro Pad 与 Blink 软件动作互动示意",
+  macroPadCaption: "硬件仅作使用示意，Blink 不依赖特定键盘型号。",
   featuresEyebrow: "SMALL KEY. MORE POSSIBILITIES.",
   featuresTitle: "一个按键，",
   featuresTitleAccent: "可以做更多。",
@@ -154,8 +157,96 @@ export const toggleStates = [
   ["在前台", "隐藏应用"],
 ];
 export const keyMappings = [
-  ["F13", "ChatGPT"],
-  ["F14", "IDE"],
-  ["F15", "常用网页"],
-  ["F16", "本地脚本"],
+  ["自定义按键", "ChatGPT"],
+  ["自定义按键", "IDE"],
+  ["自定义按键", "常用网页"],
+  ["自定义按键", "本地脚本"],
 ];
+
+export const productViews = [
+  {
+    id: "commands",
+    label: "命令面板",
+    images: [{ src: "/runtime-commands.png", alt: "Blink 命令面板中的用户命令列表" }],
+    alt: "Blink 真实命令面板，展示用户命令、动作类型和按键绑定入口",
+    caption: "当前 Blink Command Deck · 真实界面",
+    title: "命令都在这里。",
+    description: "查看自己创建的命令、动作来源与绑定状态，常用入口一目了然。",
+    detail: "真实 Runtime 界面",
+  },
+  {
+    id: "create",
+    label: "创建命令",
+    images: [
+      {
+        src: "/runtime-creator.png",
+        alt: "Blink Creator 新增命令界面，展示动作类型、网址和命令名称",
+      },
+    ],
+    alt: "Blink Creator 真实新增命令界面",
+    caption: "当前 Creator · 真实新增命令状态",
+    title: "选择动作，写下名称。",
+    description: "Creator 集中呈现动作类型、目标内容和命令名称。一个命令对应一个明确动作。",
+    detail: "真实 Creator UI",
+  },
+  {
+    id: "binding",
+    label: "绑定按键",
+    images: [
+      { src: "/runtime-binding-capture.png", alt: "Blink 等待用户按下实体键进行绑定" },
+      { src: "/runtime-binding-done.png", alt: "Blink 完成绑定并显示 F10 keycap 结果" },
+    ],
+    alt: "Blink 实体键捕获与绑定完成的真实界面",
+    caption: "真实绑定过程 · 捕获实体键 → 显示 keycap",
+    title: "按下实体键，完成绑定。",
+    description: "Blink 先进入捕获状态；收到实体键后保存绑定，并在命令行中显示对应 keycap。",
+    detail: "真实 Runtime 绑定状态",
+  },
+] as const;
+
+export const showcaseLabels = {
+  eyebrow: "BLINK, FROM COMMAND TO KEY",
+  group: "切换产品界面",
+};
+
+export const hardwareValues = [
+  ["软件里修改", "保存后应用新动作"],
+  ["动作留在软件侧", "尽量少改设备与固件"],
+  ["普通设备也能用", "前提是系统能识别按键"],
+] as const;
+
+export const hardwareStories = [
+  {
+    id: "open-app",
+    key: 1,
+    title: "按一下，打开常用 App",
+    action: "按键 1 → 打开 ChatGPT",
+    icon: "message",
+    status: "打开应用",
+  },
+  {
+    id: "return-work",
+    key: 2,
+    title: "按一下，回到正在做的事",
+    action: "按键 2 → 启动 VS Code",
+    icon: "code",
+    status: "进入工作",
+  },
+  {
+    id: "toggle-app",
+    key: 3,
+    title: "按一下叫出，再按一次收起",
+    action: "按键 3 → ChatGPT 显示 / 隐藏",
+    icon: "switch",
+    status: "即将支持 · App 切换",
+  },
+  {
+    id: "clear-action",
+    key: 2,
+    title: "按一下，触发一个明确动作",
+    action: "一个按键，对应一个独立结果",
+    icon: "command",
+    status: "更多动作",
+    alternatives: ["打开链接", "执行快捷键", "运行本地脚本"],
+  },
+] as const;

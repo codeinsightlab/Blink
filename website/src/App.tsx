@@ -20,7 +20,9 @@ import {
   Repeat2,
   Check,
 } from "lucide-react";
-import { copy, labels, toggleStates, keyMappings, DOWNLOAD_URL_PLACEHOLDER } from "./content";
+import { ProductShowcase } from "./ProductShowcase";
+import { KeyboardStory } from "./KeyboardStory";
+import { copy, labels, toggleStates, hardwareValues, DOWNLOAD_URL_PLACEHOLDER } from "./content";
 const icons: Record<string, typeof Command> = {
   code: Code2,
   terminal: Terminal,
@@ -101,23 +103,7 @@ export default function App() {
             <span>{labels.separator}</span>
             {hasDownload ? labels.downloadReady : labels.early}
           </p>
-          <figure className="product-shot">
-            <div className="shot-top">
-              <span className="window-dots" aria-hidden="true">
-                {labels.windowDots}
-              </span>
-              <span>{labels.runtime}</span>
-              <span className="shot-tag">{labels.shotTag}</span>
-            </div>
-            <img
-              src="/runtime-settings.png"
-              alt={labels.screenshotAlt}
-              width="1493"
-              height="1015"
-              fetchPriority="high"
-            />
-            <figcaption>{labels.shotCaption}</figcaption>
-          </figure>
+          <ProductShowcase />
           <div className="hero-foot">
             <span>
               <Keyboard size={15} />
@@ -211,28 +197,29 @@ export default function App() {
           </div>
         </section>
         <section className="section container" id="keys">
-          <div className="unused-section">
-            <p className="eyebrow">{labels.keysEyebrow}</p>
-            <h2>
-              {labels.keysTitle}
-              <br />
-              <span>{labels.keysTitleAccent}</span>
-            </h2>
-            <p>
-              {labels.keysList}
-              <br />
-              {labels.keysDescription}
-            </p>
-            <div className="mapping-list">
-              {keyMappings.map(([a, b]) => (
-                <div key={a}>
-                  <kbd>{a}</kbd>
-                  <ArrowRight size={16} />
-                  <span>{b}</span>
-                </div>
-              ))}
+          <div className="hardware-story showcase-surface">
+            <div className="hardware-copy">
+              <p className="eyebrow">{labels.keysEyebrow}</p>
+              <h2>
+                {labels.keysTitle}
+                <br />
+                <span>{labels.keysTitleAccent}</span>
+              </h2>
+              <p className="hardware-intro">{labels.keysDescription}</p>
+              <div className="hardware-values">
+                {hardwareValues.map(([title, description]) => (
+                  <div key={title}>
+                    <Check aria-hidden="true" size={15} />
+                    <span>
+                      <strong>{title}</strong>
+                      <small>{description}</small>
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="small-note">{labels.keysNote}</p>
             </div>
-            <p className="small-note">{labels.keysNote}</p>
+            <KeyboardStory icon={(name) => <Icon name={name} />} />
           </div>
         </section>
         <section className="section container" id="features">

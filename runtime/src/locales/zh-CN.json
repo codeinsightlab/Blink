@@ -193,5 +193,7 @@
   "toggleApp": "快速切换应用",
   "toggleAppHint": "应用不在前台时将其打开或切换到前台；应用已在前台时将其隐藏。",
   "togglePrefix": "切换 ",
-  "toggleAppFailed": "无法快速切换此应用，请检查应用位置和系统权限。"
+  "toggleAppFailed": "无法快速切换此应用，请检查应用位置和系统权限。",
+  "appToggleEnabled": "应用在前台时，再按一次隐藏",
+  "appOpenOnlyHint": "始终打开应用或将其切换到前台，不隐藏。"
 }
