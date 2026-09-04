@@ -19,6 +19,9 @@
   --success: #7ccca5;
   --danger: #ef8881;
   --radius: 9px;
+  --runtime-control-height: 32px;
+  --runtime-field-gap: 10px;
+  --runtime-dialog-padding: 22px;
   --sidebar-width: 232px;
   --content-padding: clamp(24px, 4vw, 38px);
   --grid-gap: 14px;
@@ -607,6 +610,9 @@ button:focus-visible {
   position: fixed;
   z-index: 21;
   width: 184px;
+  max-height: calc(100vh - 24px);
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 5px;
   border: 1px solid var(--border-highlight);
   border-radius: 8px;
@@ -758,7 +764,7 @@ button:focus-visible {
   font-size: 12px;
   line-height: 1.55;
 }
-.dialog input {
+.dialog input:not([type="checkbox"]):not([type="radio"]) {
   width: 100%;
   height: 32px;
   margin-bottom: 18px;
@@ -769,7 +775,7 @@ button:focus-visible {
   color: var(--text-primary);
   outline: none;
 }
-.dialog input:focus {
+.dialog input:not([type="checkbox"]):not([type="radio"]):focus {
   border-color: rgba(181, 193, 255, 0.58);
   box-shadow: 0 0 0 2px rgba(156, 170, 247, 0.13);
 }
@@ -1021,7 +1027,7 @@ button:focus-visible {
 .command-list-labels,
 .command-row {
   display: grid;
-  grid-template-columns: minmax(280px, 1.45fr) minmax(145px, 0.65fr) minmax(190px, 0.75fr) 42px;
+  grid-template-columns: minmax(0, 1fr) 145px minmax(150px, 190px) 42px;
   align-items: center;
   column-gap: 18px;
 }
@@ -1046,6 +1052,11 @@ button:focus-visible {
   display: flex;
   align-items: center;
   gap: 14px;
+}
+.row-identity > div,
+.row-binding {
+  min-width: 0;
+  overflow: hidden;
 }
 .row-identity h3,
 .system-tile h3 {
@@ -1261,7 +1272,7 @@ button:focus-visible {
   }
   .command-list-labels,
   .command-row {
-    grid-template-columns: minmax(250px, 1.3fr) 130px minmax(160px, 0.7fr) 36px;
+    grid-template-columns: minmax(0, 1fr) 130px minmax(140px, 160px) 36px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1614,7 +1625,7 @@ button:focus-visible {
 }
 
 .creator-dialog__header {
-  padding: 20px 22px 15px;
+  padding: 20px var(--runtime-dialog-padding) 15px;
   border-bottom: 1px solid var(--divider);
 }
 
@@ -1630,10 +1641,10 @@ button:focus-visible {
 
 .creator-dialog__body {
   min-height: 0;
-  padding: 18px 22px 20px;
+  padding: 18px var(--runtime-dialog-padding) 20px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--runtime-field-gap);
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -1679,7 +1690,7 @@ button:focus-visible {
 
 .creator-footer {
   flex: 0 0 auto;
-  padding: 14px 22px;
+  padding: 14px var(--runtime-dialog-padding);
   border-top: 1px solid var(--divider);
   background: rgba(31, 34, 46, 0.75);
   justify-content: flex-end;

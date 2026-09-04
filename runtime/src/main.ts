@@ -40,6 +40,21 @@ let bindingProfileId: string | undefined;
 let bindingBusy = false;
 let creatorOpen = false;
 let activeMenu: { id: string; x: number; y: number } | undefined;
+const MENU_WIDTH = 184;
+const MENU_ESTIMATED_HEIGHT = 226;
+const MENU_SAFE_MARGIN = 12;
+
+function menuPosition(trigger: DOMRect) {
+  const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
+  const maxLeft = Math.max(MENU_SAFE_MARGIN, window.innerWidth - MENU_WIDTH - MENU_SAFE_MARGIN);
+  const left = clamp(trigger.right - MENU_WIDTH, MENU_SAFE_MARGIN, maxLeft);
+  const below = trigger.bottom + 7;
+  const top =
+    below + MENU_ESTIMATED_HEIGHT <= window.innerHeight - MENU_SAFE_MARGIN
+      ? below
+      : clamp(trigger.top - MENU_ESTIMATED_HEIGHT - 7, MENU_SAFE_MARGIN, window.innerHeight - MENU_SAFE_MARGIN);
+  return { x: left, y: top };
+}
 let dialog:
   { kind: "rename" | "delete" | "delete-many" | "icons"; id: string; name: string } | undefined;
 let notice = "";
@@ -477,8 +492,7 @@ function wireEvents() {
           ? undefined
           : {
               id: button.dataset.menu!,
-              x: Math.min(rect.right - 190, window.innerWidth - 202),
-              y: rect.bottom + 7,
+              ...menuPosition(rect),
             };
       render();
     }),
