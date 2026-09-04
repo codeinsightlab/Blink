@@ -20,6 +20,16 @@ pub(crate) fn is_candidate(window: WindowFacts) -> bool {
         && (window.visible || window.iconic)
 }
 
+/// A launched process is not ready until it owns a deterministic eligible window.
+/// `Unknown` deliberately remains conservative for ordinary Toggle dispatches;
+/// this predicate is only for the bounded post-launch grace period.
+pub(crate) fn launch_poll_pending(state: crate::app_toggle::AppState) -> bool {
+    matches!(
+        state,
+        crate::app_toggle::AppState::NotRunning | crate::app_toggle::AppState::Unknown
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -68,5 +78,26 @@ mod tests {
             iconic: false,
             ..BASE
         }));
+    }
+
+    #[test]
+    fn delayed_window_startup_waits_without_a_second_launch() {
+        use crate::app_toggle::AppState;
+        let observed = [
+            AppState::NotRunning,
+            AppState::Unknown,
+            AppState::Background,
+        ];
+        let launch_count = 1;
+        for state in observed {
+            if launch_poll_pending(state) {
+                continue;
+            }
+            break;
+        }
+        assert_eq!(launch_count, 1);
+        assert!(launch_poll_pending(AppState::NotRunning));
+        assert!(launch_poll_pending(AppState::Unknown));
+        assert!(!launch_poll_pending(AppState::Background));
     }
 }

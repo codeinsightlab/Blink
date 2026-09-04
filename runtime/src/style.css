@@ -32,12 +32,14 @@
 html,
 body,
 #app {
+  width: 100%;
   height: 100%;
+  margin: 0;
 }
 body {
-  margin: 0;
-  min-width: 900px;
-  min-height: 620px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background: var(--window-bg);
   -webkit-user-select: none;
   user-select: none;
@@ -53,12 +55,60 @@ textarea,
   cursor: text;
 }
 button,
-input {
+input,
+textarea,
+select {
   font: inherit;
+  color: inherit;
 }
 button {
+  appearance: none;
+  -webkit-appearance: none;
   color: inherit;
   cursor: pointer;
+}
+input,
+textarea,
+select {
+  border: 1px solid rgba(240, 244, 255, 0.18);
+  border-radius: 6px;
+  background: rgba(12, 14, 21, 0.48);
+  outline: none;
+}
+select {
+  min-height: 32px;
+  padding: 0 30px 0 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%), linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 13px, calc(100% - 10px) 13px;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+input[type="checkbox"],
+input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  margin: 0 8px 0 0;
+  vertical-align: -3px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--border-highlight);
+  border-radius: 4px;
+  background: rgba(12, 14, 21, 0.7);
+}
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: inset 0 0 0 3px rgba(20, 23, 35, 0.9);
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
 }
 .runtime-shell {
   position: relative;
@@ -1544,15 +1594,53 @@ button {
 
 .creator-backdrop {
   z-index: 1000;
+  overflow: hidden;
+  padding: 24px;
 }
 
 .creator-dialog {
-  width: min(560px, calc(100vw - 48px));
+  width: min(620px, calc(100vw - 48px));
   max-height: calc(100vh - 48px);
-  overflow-y: auto;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  overflow: hidden;
+}
+
+.creator-dialog__header,
+.creator-dialog__body,
+.creator-footer {
+  min-width: 0;
+}
+
+.creator-dialog__header {
+  padding: 20px 22px 15px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.creator-dialog__header .dialog-kicker,
+.creator-dialog__header h2 {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.creator-dialog__header h2 {
+  margin-bottom: 0;
+}
+
+.creator-dialog__body {
+  min-height: 0;
+  padding: 18px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.creator-dialog__body > p {
+  margin: 0;
 }
 
 .creator-dialog label {
@@ -1569,7 +1657,8 @@ button {
 }
 
 .creator-dialog button[aria-pressed="true"] {
-  outline: 2px solid #8d96fb;
+  border-color: #8d96fb;
+  background: rgba(141, 150, 251, 0.2);
 }
 
 .creator-dialog button:disabled {
@@ -1580,6 +1669,7 @@ button {
 .creator-target,
 .creator-message {
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .creator-dialog .creator-warning,
@@ -1588,5 +1678,30 @@ button {
 }
 
 .creator-footer {
+  flex: 0 0 auto;
+  padding: 14px 22px;
+  border-top: 1px solid var(--divider);
+  background: rgba(31, 34, 46, 0.75);
   justify-content: flex-end;
+}
+
+.creator-dialog small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (max-width: 980px) {
+  .runtime-shell {
+    grid-template-columns: 188px minmax(0, 1fr);
+  }
+  .command-list-labels,
+  .command-row {
+    grid-template-columns: minmax(0, 1fr) minmax(130px, auto) 36px;
+    column-gap: 12px;
+  }
+  .command-list-labels span:nth-child(2),
+  .command-row > .source-label {
+    display: none;
+  }
 }

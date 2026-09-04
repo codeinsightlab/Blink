@@ -283,8 +283,11 @@ export async function openRuntimeCreator(host: CreatorHost) {
     const existing = !host.edit && host.profiles.find((item) => item.id === previousId());
     root.innerHTML = `
       <section class="dialog creator-dialog" role="dialog" aria-modal="true" aria-labelledby="creator-title">
-        <p class="dialog-kicker">${t("creatorKicker")}</p>
-        <h2 id="creator-title">${host.edit ? t("editCommand") : t("newCommand")}</h2>
+        <header class="creator-dialog__header">
+          <p class="dialog-kicker">${t("creatorKicker")}</p>
+          <h2 id="creator-title">${host.edit ? t("editCommand") : t("newCommand")}</h2>
+        </header>
+        <div class="creator-dialog__body">
         <label>${t("physicalTrigger")}</label>
         <button data-physical ${busy || leftoverId || host.edit ? "disabled" : ""}>
           ${capture.mode === "physical" ? t("pressPhysical") : escapeHtml(capture.physicalInput ?? (host.edit ? t("unbound") : t("capturePhysical")))}
@@ -337,11 +340,12 @@ export async function openRuntimeCreator(host: CreatorHost) {
         }
         ${action ? `<label for="creator-name">${t("commandName")}</label><input id="creator-name" value="${escapeHtml(name)}" ${busy || leftoverId ? "disabled" : ""}>` : ""}
         <p class="creator-message" role="status">${escapeHtml(message || capture.error || "")}</p>
-        <div class="creator-footer">
+        <small>${t("creatorFooter")}</small>
+        </div>
+        <footer class="creator-footer">
           <button data-cancel ${busy || leftoverId ? "disabled" : ""}>${t("cancel")}</button>
           ${leftoverId ? `<button data-cleanup>${t("retryCleanup")}</button>` : `<button data-save ${busy || (!host.edit && !capture.physicalInput) || !action || capture.mode ? "disabled" : ""}>${busy ? t("working") : host.edit ? t("saveChanges") : t("saveAndBind")}</button>`}
-        </div>
-        <small>${t("creatorFooter")}</small>
+        </footer>
       </section>
     `;
     root.querySelector("[data-physical]")?.addEventListener("click", () => {

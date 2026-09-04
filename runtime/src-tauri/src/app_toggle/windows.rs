@@ -1,6 +1,6 @@
 //! Windows V1 implementation: a target is one selected executable, identified
 //! by its canonical image path.  It never falls back to a title or app alias.
-use super::windows_logic::{is_candidate, WindowFacts};
+use super::windows_logic::{is_candidate, launch_poll_pending, WindowFacts};
 use super::*;
 use std::{
     collections::HashSet,
@@ -345,6 +345,49 @@ impl DesktopAppController for WindowsDesktopAppController {
         Ok(())
     }
 }
+
+fn wait_for_launch_window(
+    controller: &WindowsDesktopAppController,
+    target: &AppTarget,
+) -> Result<(), AppControlError> {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(75));
+        match controller.query_state(target) {
+            Ok(state) if launch_poll_pending(state) => continue,
+            Ok(_) => return Ok(()),
+            Err(
+                error @ AppControlError::PermissionDenied { .. }
+                | error @ AppControlError::StateQueryFailed { .. },
+            ) => return Err(error),
+            Err(error) => return Err(error),
+        }
+    }
+    Err(AppControlError::RevealFailed(
+        "launch window did not become ready before timeout".into(),
+    ))
+}
+
+fn reveal_and_verify(
+    controller: &WindowsDesktopAppController,
+    target: &AppTarget,
+) -> Result<(), AppControlError> {
+    controller.reveal(target)?;
+    let deadline = Instant::now() + Duration::from_millis(700);
+    while Instant::now() < deadline {
+        match controller.query_state(target) {
+            Ok(AppState::Foreground) => return Ok(()),
+            Ok(_) => thread::sleep(Duration::from_millis(50)),
+            Err(
+                error @ AppControlError::PermissionDenied { .. }
+                | error @ AppControlError::StateQueryFailed { .. },
+            ) => return Err(error),
+            Err(error) => return Err(error),
+        }
+    }
+    Err(AppControlError::FocusDenied)
+}
+
 pub(super) fn toggle(bundle_ids: &[String], paths: &[String]) -> Result<(), AppControlError> {
     if !bundle_ids.is_empty() {
         return Err(AppControlError::InvalidTarget);
@@ -358,19 +401,10 @@ pub(super) fn toggle(bundle_ids: &[String], paths: &[String]) -> Result<(), AppC
     let initial = controller.query_state(&target)?;
     if initial == AppState::NotRunning {
         controller.launch(&target)?;
-        let deadline = Instant::now() + Duration::from_secs(3);
-        while Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(75));
-            match controller.query_state(&target) {
-                Ok(AppState::NotRunning) => continue,
-                Ok(_) => break,
-                Err(
-                    error @ AppControlError::PermissionDenied { .. }
-                    | error @ AppControlError::StateQueryFailed { .. },
-                ) => return Err(error),
-                Err(_) => break,
-            }
-        }
+        wait_for_launch_window(&controller, &target)?;
+        // Launch is never a Conceal operation, even if the launched app races
+        // itself to the foreground before this final verification.
+        return reveal_and_verify(&controller, &target);
     }
     AppToggleService::toggle(&controller, &target)
 }
