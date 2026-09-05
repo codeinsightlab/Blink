@@ -59,9 +59,8 @@ export default function App() {
     if (saved === "zh" || saved === "en") return saved;
     return typeof navigator === "undefined" || navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
   });
-  const [platform, setPlatform] = useState<SupportedPlatform>("other");
+  const [platform] = useState<SupportedPlatform>(() => detectPlatform());
   const [downloadUrl, setDownloadUrl] = useState(RELEASE_PAGE_URL);
-  const [downloadLoading, setDownloadLoading] = useState(true);
   const labels = language === "en" ? { ...baseLabels, ...labelsEn } : baseLabels;
   const copy = language === "en" ? copyEn : baseCopy;
   const active = copy.scenarios[scenario];
@@ -72,15 +71,12 @@ export default function App() {
   }, [language]);
 
   useEffect(() => {
-    const detected = detectPlatform();
-    setPlatform(detected);
-    resolveLatestDownload(detected)
+    resolveLatestDownload(platform)
       .then(setDownloadUrl)
-      .catch(() => setDownloadUrl(RELEASE_PAGE_URL))
-      .finally(() => setDownloadLoading(false));
-  }, []);
+      .catch(() => undefined);
+  }, [platform]);
 
-  const primaryCta = { href: downloadUrl, label: downloadLoading ? (language === "en" ? "Finding your download" : "正在匹配下载地址") : labels.download };
+  const primaryCta = { href: downloadUrl, label: labels.download };
   return (
     <>
       <a className="skip" href="#main">
@@ -130,7 +126,7 @@ export default function App() {
           <p className="availability">
             {labels.macFirst}
             <span>{labels.separator}</span>
-            {downloadLoading ? (language === "en" ? "Finding the latest release" : "正在获取最新版本") : labels.downloadReady}
+            {platform === "windows" ? (language === "en" ? "Windows x64" : "Windows x64") : platform === "macos" ? labels.downloadReady : (language === "en" ? "All versions" : "全部版本")}
           </p>
           <ProductShowcase language={language} />
           <div className="hero-foot">
@@ -298,7 +294,7 @@ export default function App() {
           <p>{labels.tagline}</p>
           <a className="button primary" href={downloadUrl}>
             <Download size={17} />
-            {downloadLoading ? (language === "en" ? "Finding your download" : "正在匹配下载地址") : platform === "windows" ? (language === "en" ? "Download for Windows" : "下载 Windows 版") : platform === "macos" ? labels.downloadMac : (language === "en" ? "View all downloads" : "查看全部下载")}
+            {platform === "windows" ? (language === "en" ? "Download for Windows" : "下载 Windows 版") : platform === "macos" ? labels.downloadMac : (language === "en" ? "View all downloads" : "查看全部下载")}
           </a>
           <p className="download-note">{labels.downloadNote}</p>
           <div className="platforms">

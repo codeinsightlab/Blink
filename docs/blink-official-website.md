@@ -388,3 +388,28 @@ npm --prefix website run preview
 ### 发布边界
 
 - 本次修改尚未提交或推送；需要提交并触发 Cloudflare Pages 部署后，再验证线上场景切换。
+
+## 2026-09-05：官网最新下载链路与首屏 CTA 优化
+
+### 审查结论
+
+- 原实现直接从浏览器请求 GitHub Releases API，所有访问者共享 GitHub API 限流和跨域网络延迟。
+- `platform` 初始值固定为 `other`，`downloadLoading` 初始为 `true`；因此 macOS/Windows 首屏会先显示“正在匹配”类文案，API 返回后才切换。
+- 原实现的 Releases 页面 fallback 正确，但只在 API 失败或没有匹配 asset 后生效。
+- 项目此前没有 Cloudflare Pages Functions；本次没有引入 GitHub token、Secret、独立服务器或数据库。
+
+### 实现
+
+- 新增 `website/functions/api/latest-release.ts`：Cloudflare Pages Function 请求 `Blink-Releases` 的 latest release，只返回 `tag`、`macos`、`windows`、`releasePage`，不透传 GitHub 完整响应。
+- Function 对成功结果设置 5 分钟 `max-age` 和 `stale-while-revalidate`，发布新 Release 后无需 website rebuild/redeploy，缓存过期后自动更新。
+- 前端改为请求 `/api/latest-release`，不再让浏览器直接请求 GitHub API。
+- OS 检测在前端首个渲染状态同步完成，分类仅为 macOS、Windows、other；API 请求只静默替换 href。
+- 初始 href 始终为 `https://github.com/codeinsightlab/Blink-Releases/releases/latest`，API 慢、超时、429、5xx、JSON 异常或缺少平台 asset 时 CTA 仍可点击。
+- 移除首屏 loading 文案，不再渲染“正在匹配 / Finding your download”。
+
+### 验证
+
+- `cd website && npm run typecheck`：通过。
+- `cd website && npm run build`：通过。
+- 预渲染产物不包含 loading 文案；首页仍生成两个可点击的下载 CTA。
+- 浏览器真实 macOS/Windows/other、Cloudflare Function 缓存命中/失效和线上部署 URL 尚未在本次本地构建中证明，需 Cloudflare 部署后继续验收。
