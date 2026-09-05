@@ -54,7 +54,10 @@ export function ProductShowcase() {
           </span>
           <h2>{view.title}</h2>
           <p>{view.description}</p>
-          <span className="showcase-detail">{view.detail}</span>
+          <span className="showcase-detail">
+            <span className="label">{view.id === "binding" ? "示例流程" : "已支持"}</span>
+            {view.detail}
+          </span>
         </aside>
       </div>
     </div>

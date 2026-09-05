@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { ProductShowcase } from "./ProductShowcase";
 import { KeyboardStory } from "./KeyboardStory";
-import { copy, labels, toggleStates, hardwareValues, DOWNLOAD_URL_PLACEHOLDER } from "./content";
+import { copy, labels, hardwareValues, DOWNLOAD_URL_PLACEHOLDER } from "./content";
 const icons: Record<string, typeof Command> = {
   code: Code2,
   terminal: Terminal,
@@ -55,6 +55,9 @@ export default function App() {
   const [scenario, setScenario] = useState(0);
   const active = copy.scenarios[scenario];
   const hasDownload = DOWNLOAD_URL_PLACEHOLDER !== "#download";
+  const primaryCta = hasDownload
+    ? { href: DOWNLOAD_URL_PLACEHOLDER, label: labels.download }
+    : { href: "mailto:" + copy.email + "?subject=Blink%20%E7%94%B3%E8%AF%B7%E5%86%85%E6%B5%8B", label: labels.betaCta };
   return (
     <>
       <a className="skip" href="#main">
@@ -68,15 +71,15 @@ export default function App() {
             <a href="#scenarios">{labels.navScenarios}</a>
             <a href="#how">{labels.navHow}</a>
           </div>
-          <a className="nav-cta" href="#download">
-            {labels.download}
+          <a className="nav-cta" href={primaryCta.href}>
+            {primaryCta.label}
             <ArrowUpRight size={14} />
           </a>
         </nav>
       </header>
       <main id="main">
         <section className="hero container" id="top">
-          <a className="eyebrow hero-badge" href="#download">
+          <a className="eyebrow hero-badge" href="#features">
             <span className="dot" />
             {copy.hero.badge}
             <ArrowRight size={13} />
@@ -88,9 +91,9 @@ export default function App() {
           </h1>
           <p className="hero-description">{copy.hero.description}</p>
           <div className="actions">
-            <a className="button primary" href={DOWNLOAD_URL_PLACEHOLDER}>
+            <a className="button primary" href={primaryCta.href}>
               <Download size={17} />
-              {labels.download}
+              {primaryCta.label}
               <ArrowRight size={16} />
             </a>
             <a className="button secondary" href="#features">
@@ -140,6 +143,7 @@ export default function App() {
               <p className="eyebrow">{active.tag}</p>
               <h3>{active.title}</h3>
               <p>{active.description}</p>
+              <span className="label">{labels.exampleStatus}</span>
               <span className="small-note">{labels.scenarioNote}</span>
             </div>
             <div className="key-grid">
@@ -153,46 +157,6 @@ export default function App() {
                   <kbd>{key}</kbd>
                 </div>
               ))}
-            </div>
-          </div>
-        </section>
-        <section className="section container toggle-section" id="toggle">
-          <div className="toggle-copy">
-            <p className="eyebrow">{labels.toggleEyebrow}</p>
-            <div className="label">
-              {labels.soon}
-              <span>{labels.separator}</span>
-              {labels.togglePlatform}
-            </div>
-            <h2>
-              {labels.toggleTitle}
-              <br />
-              <span>{labels.toggleTitleAccent}</span>
-            </h2>
-            <p>{labels.toggleDescription}</p>
-            <p className="small-note">
-              {labels.toggleStateNote}
-              <br />
-              {labels.toggleReleaseNote}
-            </p>
-          </div>
-          <div className="state-demo">
-            <div className="demo-heading">
-              <Icon name="message" />
-              <span>{labels.toggleExample}</span>
-              <span className="small-note">{labels.toggleDiagram}</span>
-            </div>
-            {toggleStates.map(([a, b]) => (
-              <div className="state-row" key={a}>
-                <span>{a}</span>
-                <kbd>{labels.toggleKey}</kbd>
-                <ArrowRight size={15} />
-                <strong>{b}</strong>
-              </div>
-            ))}
-            <div className="demo-note">
-              <span className="dot" />
-              {labels.toggleFooter}
             </div>
           </div>
         </section>
@@ -236,7 +200,9 @@ export default function App() {
               <article className="feature-card" key={title}>
                 <div className="feature-top">
                   <Icon name={icon} />
-                  {status === "即将支持" && <span className="label">{status}</span>}
+                  <span className={status === "即将支持" ? "label pending-label" : "label supported-label"}>
+                    {status}
+                  </span>
                 </div>
                 <h3>{title}</h3>
                 <p>{description}</p>
@@ -311,11 +277,10 @@ export default function App() {
             </a>
           ) : (
             <>
-              <button className="button pending" disabled>
+              <a className="button primary" href={primaryCta.href}>
                 <Download size={17} />
-                {labels.downloadMac}
-                <small>{labels.downloadSoon}</small>
-              </button>
+                {labels.betaCta}
+              </a>
               <p className="download-note">
                 {labels.downloadNote}
                 <a href={"mailto:" + copy.email}>
