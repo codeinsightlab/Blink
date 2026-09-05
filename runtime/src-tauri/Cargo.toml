@@ -1,6 +1,6 @@
 [package]
 name = "blink-runtime"
-version = "0.1.0"
+version = "0.1.1"
 description = "Blink Runtime V0"
 edition = "2021"
 default-run = "Blink"
