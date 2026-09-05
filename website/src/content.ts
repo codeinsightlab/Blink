@@ -69,7 +69,7 @@ export const labels = {
   navScenarios: "使用场景",
   navHow: "如何使用",
   download: "下载 Blink1",
-  betaCta: "申请 Blink 内测",
+  betaCta: "申请 Blink 内测1",
   learn: "了解 Blink",
   macFirst: "macOS 优先",
   separator: "·",
