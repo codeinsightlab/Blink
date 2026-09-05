@@ -6,7 +6,7 @@ export const copy = {
     "Blink 是一款桌面快捷控制工具，将 App、URL、脚本和系统动作绑定到实体按键，一键启动、切换和执行。",
   email: "lixinzhang0703@gmail.com",
   hero: {
-    badge: "为你的 Mac，多一点顺手",
+    badge: "为你的 PC，多一点顺手",
     title: ["把常用动作，", "交给一个按键。"],
     description: "将 App、URL、脚本和系统动作绑定到实体键盘。\n一键直达，少一点寻找，多一点专注。",
   },

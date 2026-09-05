@@ -4,6 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#07090d" />
+    <style>
+      #root { visibility: hidden; }
+      html.blink-ready #root { visibility: visible; }
+    </style>
+    <script>
+      (() => {
+        const root = document.documentElement;
+        let saved = null;
+        try {
+          saved = window.localStorage.getItem("blink-language");
+        } catch {}
+        const language = saved === "zh" || saved === "en"
+          ? saved
+          : (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+        const platformSource = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || "";
+        const platform = /Mac/i.test(platformSource) ? "macos" : /Win/i.test(platformSource) ? "windows" : "other";
+        root.dataset.locale = language;
+        root.dataset.platform = platform;
+        root.lang = language === "en" ? "en" : "zh-CN";
+      })();
+    </script>
     <title>Blink - 把任意按键变成快捷动作</title>
     <meta
       name="description"

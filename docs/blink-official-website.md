@@ -413,3 +413,26 @@ npm --prefix website run preview
 - `cd website && npm run build`：通过。
 - 预渲染产物不包含 loading 文案；首页仍生成两个可点击的下载 CTA。
 - 浏览器真实 macOS/Windows/other、Cloudflare Function 缓存命中/失效和线上部署 URL 尚未在本次本地构建中证明，需 Cloudflare 部署后继续验收。
+
+## 2026-09-05：首屏 locale/platform 同步初始化与闪烁修复
+
+### Root Cause
+
+- 静态预渲染 HTML 固定输出默认 locale；客户端随后从 `localStorage`/`navigator.language` 读取真实 locale，造成英文→中文或中文→英文的短暂切换。
+- `platform` 虽已改为 state initializer，但预渲染 HTML 与浏览器平台仍不一致；`hydrateRoot` 会在首次客户端 render 时进行 hydration reconciliation，造成 `other`→macOS/Windows 的短暂切换。
+- `<html lang>` 原先依赖 React mount 后的 effect，首个 HTML 状态不一定反映用户偏好。
+
+### Changes
+
+- `website/index.html` head 新增同步 bootstrap：在主 bundle 前读取 `blink-language`、fallback `navigator.language`，同步写入 `data-locale`、`data-platform` 和 `<html lang>`。
+- `website/src/App.tsx` 首次 state 直接读取 bootstrap；locale/platform 不再通过初始 `useEffect` 二次赋值。
+- 手动切换语言时同步更新 `localStorage`、`data-locale` 和 `<html lang>`；latest-release 请求仍只更新下载 href。
+- `website/src/main.tsx` 改为客户端 `createRoot`，不再用预渲染 HTML 做 hydration，避免服务端默认状态与真实客户端状态对比造成闪烁。
+- 中文 Hero 文案更新为“为你的 PC，多一点顺手”。
+
+### Validation Boundary
+
+- `cd website && npm run typecheck`：通过。
+- `cd website && npm run build`：通过。
+- 产物包含 bootstrap，且 latest-release Function 未修改。
+- 中文/英文、macOS/Windows、无 localStorage/已有 localStorage 的真实浏览器首帧 filmstrip 尚未在本地工具中完成；需 Cloudflare Production 部署后匿名浏览器复核。

@@ -52,29 +52,50 @@ function Brand({ labels }: { labels: typeof baseLabels }) {
     </a>
   );
 }
+
+function initialLanguage(): "zh" | "en" {
+  if (typeof document !== "undefined") {
+    const bootstrapped = document.documentElement.dataset.locale;
+    if (bootstrapped === "zh" || bootstrapped === "en") return bootstrapped;
+  }
+  try {
+    const saved = window.localStorage.getItem("blink-language");
+    if (saved === "zh" || saved === "en") return saved;
+  } catch {}
+  return typeof navigator === "undefined" || navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+}
+
+function initialPlatform(): SupportedPlatform {
+  if (typeof document !== "undefined") {
+    const bootstrapped = document.documentElement.dataset.platform;
+    if (bootstrapped === "macos" || bootstrapped === "windows" || bootstrapped === "other") return bootstrapped;
+  }
+  return detectPlatform();
+}
+
 export default function App() {
   const [scenario, setScenario] = useState(0);
-  const [language, setLanguage] = useState<"zh" | "en">(() => {
-    const saved = typeof window !== "undefined" ? window.localStorage.getItem("blink-language") : null;
-    if (saved === "zh" || saved === "en") return saved;
-    return typeof navigator === "undefined" || navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
-  });
-  const [platform] = useState<SupportedPlatform>(() => detectPlatform());
+  const [language, setLanguage] = useState<"zh" | "en">(initialLanguage);
+  const [platform] = useState<SupportedPlatform>(initialPlatform);
   const [downloadUrl, setDownloadUrl] = useState(RELEASE_PAGE_URL);
   const labels = language === "en" ? { ...baseLabels, ...labelsEn } : baseLabels;
   const copy = language === "en" ? copyEn : baseCopy;
   const active = copy.scenarios[scenario];
 
   useEffect(() => {
-    window.localStorage.setItem("blink-language", language);
-    document.documentElement.lang = language === "en" ? "en" : "zh-CN";
-  }, [language]);
-
-  useEffect(() => {
     resolveLatestDownload(platform)
       .then(setDownloadUrl)
       .catch(() => undefined);
   }, [platform]);
+
+  const changeLanguage = (next: "zh" | "en") => {
+    setLanguage(next);
+    document.documentElement.lang = next === "en" ? "en" : "zh-CN";
+    document.documentElement.dataset.locale = next;
+    try {
+      window.localStorage.setItem("blink-language", next);
+    } catch {}
+  };
 
   const primaryCta = { href: downloadUrl, label: labels.download };
   return (
@@ -85,7 +106,7 @@ export default function App() {
       <header>
         <nav className="nav container" aria-label={labels.navLabel}>
           <Brand labels={labels} />
-          <button className="language-toggle" type="button" onClick={() => setLanguage(language === "en" ? "zh" : "en")} aria-label={language === "en" ? "切换为中文" : "Switch to English"}>
+          <button className="language-toggle" type="button" onClick={() => changeLanguage(language === "en" ? "zh" : "en")} aria-label={language === "en" ? "切换为中文" : "Switch to English"}>
             {language === "en" ? "中文" : "EN"}
           </button>
           <div className="nav-links">
