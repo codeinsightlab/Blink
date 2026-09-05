@@ -170,7 +170,7 @@
   "hotkeyHint": "This shortcut is the action, not the physical trigger. Only the current platform implementation is saved.",
   "urlLabel": "URL (HTTP/HTTPS)",
   "scriptWarningPrefix": "Scripts run with your user permissions and can modify files. Only select trusted ",
-  "scriptWarningSuffix": " files; no arguments, a 30-second limit, and no sandbox.",
+  "scriptWarningSuffix": "; no arguments, up to 30 seconds. Background child processes are stopped on completion or timeout. This is not a sandbox.",
   "scriptConsent": "I have reviewed and trust this script",
   "commandName": "Command name",
   "creatorFooter": "Blink pauses listening during configuration and resumes after saving. No restart required.",
@@ -195,5 +195,14 @@
   "togglePrefix": "Toggle ",
   "toggleAppFailed": "Unable to toggle this app. Check its location and system permissions.",
   "appToggleEnabled": "Press again to hide when the app is in front",
-  "appOpenOnlyHint": "Always open or bring the app to the front, without hiding it."
+  "appOpenOnlyHint": "Always open or bring the app to the front, without hiding it.",
+  "dataManagement": "Commands and backups",
+  "dataManagementHint": "Export commands to share, or back up local commands, bindings and icons. Language, order, scripts and target files are not included.",
+  "exportCommands": "Export user commands",
+  "backupRuntime": "Back up configuration",
+  "restoreRuntime": "Restore configuration",
+  "restoreWarning": "Restore replaces current commands, bindings and icons, and requires the same operating system. The backup may contain scripts; only restore a trusted file. A recovery copy is saved first. Continue?",
+  "dataSaved": "File saved",
+  "dataRestored": "Configuration restored",
+  "dataFailed": "Configuration operation failed: "
 }

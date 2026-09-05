@@ -51,9 +51,15 @@ jobs:
           set -euo pipefail
           test -n "${RELEASE_TOKEN:-}"
 
+  verify:
+    needs: preflight
+    uses: ./.github/workflows/verify.yml
+    with:
+      source_ref: refs/tags/${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+
   build-macos-arm64:
     name: Build macOS arm64 DMG
-    needs: preflight
+    needs: [preflight, verify]
     runs-on: macos-14
     timeout-minutes: 45
     steps:
@@ -132,7 +138,7 @@ jobs:
 
   build-windows-x64:
     name: Build Windows x64 installers
-    needs: preflight
+    needs: [preflight, verify]
     runs-on: windows-2022
     timeout-minutes: 45
     steps:

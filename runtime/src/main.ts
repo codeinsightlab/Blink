@@ -1,6 +1,6 @@
 import { t, getLanguage, setLanguage, builtinText } from "./locale.ts";
 import { invoke } from "@tauri-apps/api/core";
-import { open, confirm } from "@tauri-apps/plugin-dialog";
+import { open, save, confirm } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { HotkeyDisplay } from "./keycap";
 import { RuntimeIcon, type RuntimeIconName } from "./runtimeIcon";
@@ -52,7 +52,11 @@ function menuPosition(trigger: DOMRect) {
   const top =
     below + MENU_ESTIMATED_HEIGHT <= window.innerHeight - MENU_SAFE_MARGIN
       ? below
-      : clamp(trigger.top - MENU_ESTIMATED_HEIGHT - 7, MENU_SAFE_MARGIN, window.innerHeight - MENU_SAFE_MARGIN);
+      : clamp(
+          trigger.top - MENU_ESTIMATED_HEIGHT - 7,
+          MENU_SAFE_MARGIN,
+          window.innerHeight - MENU_SAFE_MARGIN,
+        );
   return { x: left, y: top };
 }
 let dialog:
@@ -206,6 +210,55 @@ async function startCreator(editId?: string) {
     creatorOpen = false;
     showNotice((editId ? t("editFailed") : t("createStartFailed")) + String(error));
     await reloadRuntimeSnapshot();
+  }
+}
+let dataBusy = false;
+async function manageData(mode: "export" | "backup" | "restore") {
+  if (dataBusy) return;
+  dataBusy = true;
+  document
+    .querySelectorAll<HTMLButtonElement>(".settings-data-actions button")
+    .forEach((button) => {
+      button.disabled = true;
+    });
+  try {
+    const filters = [{ name: t("profileFile"), extensions: ["json"] }];
+    const path =
+      mode === "restore"
+        ? await open({ multiple: false, filters })
+        : await save({
+            filters,
+            defaultPath: mode === "export" ? "blink-commands.json" : "blink-runtime.backup.json",
+          });
+    if (!path || Array.isArray(path)) return;
+    if (mode === "restore") {
+      if (!(await confirm(t("restoreWarning"), { title: t("restoreRuntime"), kind: "warning" })))
+        return;
+      await invoke("restore_runtime", { path });
+      showNotice(t("dataRestored"));
+    } else {
+      await invoke("export_runtime", { path, portable: mode === "export" });
+      showNotice(t("dataSaved"));
+    }
+    try {
+      await reloadRuntimeSnapshot();
+    } catch (error) {
+      showNotice(
+        t(mode === "restore" ? "dataRestored" : "dataSaved") +
+          t("refreshFailedSuffix") +
+          String(error),
+      );
+    }
+  } catch (error) {
+    showNotice(t("dataFailed") + String(error));
+  } finally {
+    dataBusy = false;
+    render();
+    document
+      .querySelectorAll<HTMLButtonElement>(".settings-data-actions button")
+      .forEach((button) => {
+        button.disabled = false;
+      });
   }
 }
 async function importProfile() {
@@ -535,6 +588,15 @@ function wireEvents() {
         () => void selectIcon(dialog!.id, button.dataset.iconChoice!),
       ),
     );
+  document
+    .querySelector("#export-commands")
+    ?.addEventListener("click", () => void manageData("export"));
+  document
+    .querySelector("#backup-runtime")
+    ?.addEventListener("click", () => void manageData("backup"));
+  document
+    .querySelector("#restore-runtime")
+    ?.addEventListener("click", () => void manageData("restore"));
   document.querySelector("#dialog-cancel")?.addEventListener("click", () => {
     dialog = undefined;
     render();

@@ -118,36 +118,101 @@ fn run_script_with_timeout(path: &str, timeout: std::time::Duration) -> Result<(
             return Err("UNSUPPORTED_SCRIPT".into());
         }
         let mut command = Command::new("powershell.exe");
-        command.args(["-NoProfile", "-NonInteractive", "-File", path]);
+        // Wait for job assignment before the script can spawn any descendants.
+        command.args(["-NoProfile", "-NonInteractive", "-Command", "$null = [Console]::In.ReadLine(); try { & $env:BLINK_SCRIPT_PATH; if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }; if (-not $?) { exit 1 } } catch { [Console]::Error.WriteLine($_); exit 1 }"]);
+        command.env("BLINK_SCRIPT_PATH", path);
         command
     };
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     return Err("UNSUPPORTED_PLATFORM".into());
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
+        use std::io::Read;
+        #[cfg(target_os = "windows")]
+        use std::io::Write;
+        crate::script_process::prepare(&mut command);
         command
-            .stdin(std::process::Stdio::null())
+            .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
+            .stderr(std::process::Stdio::piped());
         let mut child = command
             .spawn()
             .map_err(|e| format!("SCRIPT_START_FAILED: {e}"))?;
-        let start = std::time::Instant::now();
-        loop {
-            if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
-                return if status.success() {
-                    Ok(())
-                } else {
-                    Err(format!("SCRIPT_FAILED: {status}"))
-                };
-            }
-            if start.elapsed() > timeout {
+        let tree = match crate::script_process::Tree::attach(&child) {
+            Ok(tree) => tree,
+            Err(error) => {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err("SCRIPT_TIMEOUT: 30s".into());
+                return Err(format!("SCRIPT_ISOLATION_FAILED: {error}"));
             }
-            std::thread::sleep(std::time::Duration::from_millis(50));
+        };
+        #[cfg(target_os = "windows")]
+        if let Some(mut input) = child.stdin.take() {
+            if let Err(error) = input.write_all(b"\n") {
+                let _ = tree.terminate();
+                let _ = child.wait();
+                return Err(error.to_string());
+            }
         }
+        #[cfg(not(target_os = "windows"))]
+        drop(child.stdin.take());
+        let mut stderr = child.stderr.take().ok_or("SCRIPT_STDERR_MISSING")?;
+        // Drain continuously to avoid a full pipe blocking the child; retain only the tail.
+        let output = std::sync::Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+        let captured = output.clone();
+        let reader = std::thread::spawn(move || {
+            let mut buffer = [0; 1024];
+            while let Ok(count) = stderr.read(&mut buffer) {
+                if count == 0 {
+                    break;
+                }
+                let mut tail = captured.lock().unwrap();
+                tail.extend_from_slice(&buffer[..count]);
+                let excess = tail.len().saturating_sub(4096);
+                tail.drain(..excess);
+            }
+        });
+        let start = std::time::Instant::now();
+        let result = loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    break if status.success() {
+                        Ok(())
+                    } else {
+                        Err(format!("SCRIPT_FAILED: {status}"))
+                    }
+                }
+                Err(error) => break Err(error.to_string()),
+                _ => {}
+            }
+            if start.elapsed() > timeout {
+                break Err(format!("SCRIPT_TIMEOUT: {}ms", timeout.as_millis()));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        };
+        let cleanup = tree.terminate();
+        if cleanup.is_err() {
+            let _ = child.kill();
+        }
+        let _ = child.wait();
+        cleanup.map_err(|e| format!("SCRIPT_CLEANUP_FAILED: {e}"))?;
+        // A reaped process tree closes stderr. Bound this wait even if a script deliberately escaped its group.
+        let drain_start = std::time::Instant::now();
+        while !reader.is_finished() && drain_start.elapsed() < std::time::Duration::from_millis(100)
+        {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        if reader.is_finished() {
+            let _ = reader.join();
+        }
+        result.map_err(|error| {
+            let tail = output.lock().unwrap();
+            if tail.is_empty() {
+                error
+            } else {
+                format!("{error}\n{}", String::from_utf8_lossy(&tail))
+            }
+        })
     }
 }
 
@@ -359,6 +424,71 @@ mod tests {
         // Keep the tiny fixture while its document window is open.
     }
 
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn windows_script_job_captures_errors_and_stops_descendants() {
+        let dir = std::env::temp_dir().join(format!("blink-job-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("parent.ps1");
+        std::fs::write(
+            &script,
+            "[Console]::Error.WriteLine('detailed_failure'); exit 7",
+        )
+        .unwrap();
+        assert!(super::run_script(script.to_str().unwrap())
+            .unwrap_err()
+            .contains("detailed_failure"));
+        let marker = dir.join("survived.txt");
+        let child = dir.join("child.ps1");
+        let quote = |p: &std::path::Path| p.to_string_lossy().replace("'", "''");
+        std::fs::write(
+            &child,
+            format!(
+                "Start-Sleep -Seconds 3; Set-Content -LiteralPath '{}' -Value survived",
+                quote(&marker)
+            ),
+        )
+        .unwrap();
+        std::fs::write(&script, format!("Start-Process powershell.exe -ArgumentList @('-NoProfile', '-NonInteractive', '-File', '\"{}\"'); Start-Sleep -Seconds 10", quote(&child))).unwrap();
+        assert!(super::run_script_with_timeout(
+            script.to_str().unwrap(),
+            std::time::Duration::from_secs(2)
+        )
+        .unwrap_err()
+        .contains("SCRIPT_TIMEOUT"));
+        std::thread::sleep(std::time::Duration::from_secs(4));
+        assert!(!marker.exists());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn script_timeout_stops_background_descendants_and_captures_bounded_errors() {
+        let dir = std::env::temp_dir().join(format!("blink-tree-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("tree.sh");
+        let marker = dir.join("escaped");
+        std::fs::write(
+            &script,
+            format!(
+                "(sleep 0.4; echo survived > '{}') &\nwait\n",
+                marker.display()
+            ),
+        )
+        .unwrap();
+        assert!(super::run_script_with_timeout(
+            script.to_str().unwrap(),
+            std::time::Duration::from_millis(80)
+        )
+        .unwrap_err()
+        .contains("SCRIPT_TIMEOUT"));
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        assert!(!marker.exists(), "background process survived timeout");
+        std::fs::write(&script, "echo detailed_failure >&2; exit 7\n").unwrap();
+        assert!(super::run_script(script.to_str().unwrap())
+            .unwrap_err()
+            .contains("detailed_failure"));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     #[cfg(target_os = "macos")]
     fn executes_only_selected_shell_file_and_reports_exit_and_timeout() {

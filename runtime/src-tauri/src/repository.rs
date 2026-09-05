@@ -46,6 +46,18 @@ pub struct ProfileRepository {
 }
 
 impl ProfileRepository {
+    pub fn change<T>(
+        &mut self,
+        path: &Path,
+        update: impl FnOnce(&mut Self) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let mut candidate = self.clone();
+        let value = update(&mut candidate)?;
+        candidate.save(path)?;
+        *self = candidate;
+        Ok(value)
+    }
+
     pub fn load(path: &Path) -> Result<Self, String> {
         let data = match fs::read_to_string(path) {
             Ok(data) => data,
@@ -79,11 +91,17 @@ impl ProfileRepository {
         }
         let temporary = path.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
         let result = (|| {
-            fs::write(
-                &temporary,
-                serde_json::to_string_pretty(&validated).map_err(|e| e.to_string())?,
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary)
+                .map_err(|e| e.to_string())?;
+            std::io::Write::write_all(
+                &mut file,
+                &serde_json::to_vec_pretty(&validated).map_err(|e| e.to_string())?,
             )
             .map_err(|e| e.to_string())?;
+            file.sync_all().map_err(|e| e.to_string())?;
             fs::rename(&temporary, path).map_err(|e| e.to_string())
         })();
         if result.is_err() {
@@ -245,6 +263,35 @@ mod tests {
         Profile::from_json(r#"{"version":"2.0","name":"Copy","actions":[{"type":"COMMAND","executions":{"macos":{"type":"SEND_HOTKEY","keys":["META","C"]}}}]}"#).unwrap()
     }
 
+    #[test]
+    fn failed_changes_preserve_memory_and_saved_profiles() {
+        let dir = std::env::temp_dir().join(format!("blink-change-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("profiles.json");
+        let blocked = dir.join("blocked.json");
+        fs::create_dir(&blocked).unwrap();
+        let mut repository = ProfileRepository::default();
+        let item = repository.insert_import(copy_profile()).unwrap();
+        repository.save(&file).unwrap();
+        let original = fs::read(&file).unwrap();
+        assert!(repository
+            .change(&blocked, |r| r.rename(&item.id, "Changed".into()))
+            .is_err());
+        assert_eq!(repository.find(&item.id).unwrap().display_name(), "Copy");
+        assert!(repository
+            .change(&blocked, |r| r.insert_import(copy_profile()))
+            .is_err());
+        assert_eq!(repository.profiles.len(), 1);
+        assert!(repository
+            .change(&file, |r| -> Result<(), String> {
+                r.insert_import(copy_profile())?;
+                Err("validation failed".into())
+            })
+            .is_err());
+        assert_eq!(repository.profiles.len(), 1);
+        assert_eq!(fs::read(&file).unwrap(), original);
+        fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn rejects_legacy_runtime_record_without_overwriting_it() {
         with_repository_file(|path| {

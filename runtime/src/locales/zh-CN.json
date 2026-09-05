@@ -170,7 +170,7 @@
   "hotkeyHint": "此组合键是执行内容，不会作为实体绑定。仅保存当前系统实现。",
   "urlLabel": "网址（HTTP/HTTPS）",
   "scriptWarningPrefix": "脚本以当前用户权限执行，可以修改文件。仅选择可信的 ",
-  "scriptWarningSuffix": "；无参数，最多运行 30 秒，不是沙箱。",
+  "scriptWarningSuffix": "；无参数，最多运行 30 秒；结束或超时后清理后台子进程，不是沙箱。",
   "scriptConsent": "我已检查并信任此脚本",
   "commandName": "命令名称",
   "creatorFooter": "配置期间暂停 Blink 监听；保存成功后自动恢复，无需重启。",
@@ -195,5 +195,14 @@
   "togglePrefix": "切换 ",
   "toggleAppFailed": "无法快速切换此应用，请检查应用位置和系统权限。",
   "appToggleEnabled": "应用在前台时，再按一次隐藏",
-  "appOpenOnlyHint": "始终打开应用或将其切换到前台，不隐藏。"
+  "appOpenOnlyHint": "始终打开应用或将其切换到前台，不隐藏。",
+  "dataManagement": "命令与备份",
+  "dataManagementHint": "导出命令用于分享，或备份本机命令、绑定和图标。备份不包含界面语言、排序或脚本及目标文件本身。",
+  "exportCommands": "导出用户命令",
+  "backupRuntime": "备份本机配置",
+  "restoreRuntime": "恢复本机配置",
+  "restoreWarning": "恢复会替换当前命令、绑定和图标，仅支持同一操作系统。配置可能包含脚本，请确认来源可信。恢复前会自动保留当前配置副本。是否继续？",
+  "dataSaved": "文件已保存",
+  "dataRestored": "配置已恢复",
+  "dataFailed": "配置操作失败："
 }

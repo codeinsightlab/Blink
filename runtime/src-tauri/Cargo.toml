@@ -29,3 +29,6 @@ uuid = { version = "1", features = ["v4"] }
 objc2 = { version = "0.6.4", features = ["exception"] }
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["libc", "NSRunningApplication", "NSWorkspace", "NSImage", "NSBitmapImageRep", "NSImageRep", "NSGraphics", "NSGraphicsContext", "objc2-core-foundation"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSBundle", "NSArray", "NSURL", "NSString", "NSData", "NSDictionary"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_Security"] }

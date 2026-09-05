@@ -1,0 +1,45 @@
+name: Verify Runtime and shared contract
+on:
+  pull_request:
+  push:
+    branches: ["**"]
+  workflow_call:
+    inputs:
+      source_ref:
+        type: string
+        default: ""
+permissions:
+  contents: read
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            runtime/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: npm ci
+      - run: npm ci
+        working-directory: runtime
+      - run: cargo fetch --locked --manifest-path runtime/src-tauri/Cargo.toml
+      - run: npm run typecheck
+      - run: npm --prefix runtime run build
+      - run: cargo fmt --manifest-path runtime/src-tauri/Cargo.toml -- --check
+      - run: cargo test --locked --offline --manifest-path runtime/src-tauri/Cargo.toml
+      - run: npm run test:models
+      - run: npm run test:creator
+      - run: npm run test:parity

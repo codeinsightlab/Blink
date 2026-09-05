@@ -23,13 +23,18 @@ pub struct BindingState {
 }
 
 impl BindingState {
-    pub fn load(path: &Path, profile_ids: &HashSet<String>) -> Self {
-        let mut state: Self = fs::read_to_string(path)
-            .ok()
-            .and_then(|value| serde_json::from_str(&value).ok())
-            .unwrap_or_default();
+    pub fn load(path: &Path, profile_ids: &HashSet<String>) -> Result<Self, String> {
+        let data = match fs::read_to_string(path) {
+            Ok(data) => data,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self::default())
+            }
+            Err(error) => return Err(format!("BINDING_RESTORE_FAILED: {error}")),
+        };
+        let mut state: Self = serde_json::from_str(&data)
+            .map_err(|error| format!("BINDING_RESTORE_FAILED: {error}"))?;
         state.rebuild(profile_ids);
-        state
+        Ok(state)
     }
     pub fn save(&self, path: &Path) -> Result<(), String> {
         if let Some(parent) = path.parent() {
@@ -37,11 +42,17 @@ impl BindingState {
         }
         let temporary = path.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
         let result = (|| {
-            fs::write(
-                &temporary,
-                serde_json::to_string_pretty(self).map_err(|e| e.to_string())?,
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary)
+                .map_err(|e| e.to_string())?;
+            std::io::Write::write_all(
+                &mut file,
+                &serde_json::to_vec_pretty(self).map_err(|e| e.to_string())?,
             )
             .map_err(|e| e.to_string())?;
+            file.sync_all().map_err(|e| e.to_string())?;
             fs::rename(&temporary, path).map_err(|e| e.to_string())
         })();
         if result.is_err() {
@@ -106,6 +117,21 @@ impl BindingState {
 mod tests {
     use super::BindingState;
     #[test]
+    fn corrupt_and_unreadable_bindings_are_not_empty_configuration() {
+        let dir = std::env::temp_dir().join(format!("blink-restore-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("bindings.json");
+        assert!(BindingState::load(&file, &Default::default())
+            .unwrap()
+            .bindings
+            .is_empty());
+        std::fs::write(&file, "{broken").unwrap();
+        assert!(BindingState::load(&file, &Default::default()).is_err());
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "{broken");
+        assert!(BindingState::load(&dir, &Default::default()).is_err());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
     fn last_binding_wins_and_rebind_releases_old_input() {
         let mut state = BindingState::default();
         state.bind_profile("A", "F11");
@@ -135,7 +161,7 @@ mod tests {
         assert_eq!(state.physical_to_profile["F10"], "old");
         next.save(&file).unwrap();
         let restored =
-            BindingState::load(&file, &["old".into(), "new".into()].into_iter().collect());
+            BindingState::load(&file, &["old".into(), "new".into()].into_iter().collect()).unwrap();
         assert_eq!(restored.physical_to_profile["F10"], "new");
         assert!(!restored.profile_to_physical.contains_key("old"));
         assert!(restored.consistent());

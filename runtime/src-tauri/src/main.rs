@@ -1,9 +1,13 @@
 mod app_icon;
 mod app_toggle;
+mod backup;
 mod binding;
+mod diagnostics;
 mod execution;
+mod persistence;
 mod profile;
 mod repository;
+mod script_process;
 mod tray;
 mod window;
 use binding::BindingState;
@@ -152,87 +156,91 @@ fn publish_diagnostic(app: &AppHandle, event: String, error: Option<String>) {
     core.last_error = error;
     drop(core);
     if let Some(log_file) = log_file {
-        use std::io::Write;
-        let line = match detail {
-            Some(error) => format!("{event} | {error}\n"),
-            None => format!("{event}\n"),
-        };
-        let _ = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_file)
-            .and_then(|mut file| file.write_all(line.as_bytes()));
+        if let Err(error) = diagnostics::append(&log_file, &event, detail.as_deref()) {
+            eprintln!("诊断写入失败: {error}");
+        }
     }
     let _ = app.emit("runtime-diagnostic", ());
 }
 fn dispatch_profile(app: &AppHandle, id: &str) {
+    let execution_id = uuid::Uuid::new_v4();
     let executions = {
         let state = app.state::<SharedRuntime>();
         let core = state.lock().expect("runtime lock");
         core.repository
             .find(id)
-            .map(|runtime_profile| runtime_profile.profile.executions_for(current_platform()))
+            .map(|p| p.profile.executions_for(current_platform()))
     };
-    if let Some(executions) = executions {
-        match executions {
-            Ok(executions) => {
-                if executions
-                    .iter()
-                    .any(|execution| matches!(execution, profile::Execution::RunScript { .. }))
-                {
-                    static SCRIPT_RUNNING: AtomicBool = AtomicBool::new(false);
-                    if SCRIPT_RUNNING.swap(true, Ordering::SeqCst) {
-                        publish_diagnostic(app, "脚本仍在运行，请稍后重试".into(), None);
-                        return;
-                    }
-                    let handle = app.clone();
-                    std::thread::spawn(move || {
-                        let result = executions.iter().try_for_each(execution::dispatch);
-                        SCRIPT_RUNNING.store(false, Ordering::SeqCst);
-                        match result {
-                            Ok(()) => publish_diagnostic(&handle, "脚本命令执行完成".into(), None),
-                            Err(error) => {
-                                publish_diagnostic(&handle, "脚本命令执行失败".into(), Some(error))
-                            }
-                        }
-                    });
-                    return;
-                }
-                if executions
-                    .iter()
-                    .any(|execution| matches!(execution, profile::Execution::ToggleApp { .. }))
-                {
-                    // App launch polling must not block the AppKit main run loop.
-                    let handle = app.clone();
-                    std::thread::spawn(move || {
-                        match executions.iter().try_for_each(execution::dispatch) {
-                            Ok(()) => publish_diagnostic(
-                                &handle,
-                                "已收到快捷键，命令执行完成".into(),
-                                None,
-                            ),
-                            Err(error) => publish_diagnostic(
-                                &handle,
-                                "已收到快捷键，但命令执行失败".into(),
-                                Some(error),
-                            ),
-                        }
-                    });
-                    return;
-                }
-                for execution in executions {
-                    if let Err(error) = execution::dispatch(&execution) {
-                        publish_diagnostic(app, "已收到快捷键，但命令执行失败".into(), Some(error));
-                        return;
-                    }
+    let Some(executions) = executions else {
+        return;
+    };
+    let executions = match executions {
+        Ok(value) => value,
+        Err(error) => {
+            publish_diagnostic(
+                app,
+                format!("exec={execution_id} profile={id} 配置不可执行"),
+                Some(error),
+            );
+            return;
+        }
+    };
+    let script = executions
+        .iter()
+        .any(|e| matches!(e, profile::Execution::RunScript { .. }));
+    static SCRIPT_RUNNING: AtomicBool = AtomicBool::new(false);
+    if script && SCRIPT_RUNNING.swap(true, Ordering::SeqCst) {
+        publish_diagnostic(
+            app,
+            format!("exec={execution_id} profile={id} 脚本仍在运行，请稍后重试"),
+            None,
+        );
+        return;
+    }
+    publish_diagnostic(
+        app,
+        format!("exec={execution_id} profile={id} 开始执行"),
+        None,
+    );
+    let handle = app.clone();
+    let id = id.to_owned();
+    let asynchronous = script
+        || executions
+            .iter()
+            .any(|e| matches!(e, profile::Execution::ToggleApp { .. }));
+    let run = move || {
+        struct ScriptGuard(bool);
+        impl Drop for ScriptGuard {
+            fn drop(&mut self) {
+                if self.0 {
+                    SCRIPT_RUNNING.store(false, Ordering::SeqCst);
                 }
             }
-            Err(error) => {
-                publish_diagnostic(app, "已收到快捷键，但命令执行失败".into(), Some(error));
+        }
+        let _guard = ScriptGuard(script);
+        for (index, execution) in executions.iter().enumerate() {
+            if let Err(error) = execution::dispatch(execution) {
+                publish_diagnostic(
+                    &handle,
+                    format!(
+                        "exec={execution_id} profile={id} action={} 执行失败",
+                        index + 1
+                    ),
+                    Some(error),
+                );
                 return;
             }
         }
-        publish_diagnostic(app, "已收到快捷键，命令执行完成".into(), None);
+        publish_diagnostic(
+            &handle,
+            format!("exec={execution_id} profile={id} 命令执行完成"),
+            None,
+        );
+    };
+    if asynchronous {
+        std::thread::spawn(run);
+    } else {
+        run();
     }
 }
 fn dispatch_physical_key(app: &AppHandle, shortcut: &Shortcut) {
@@ -279,14 +287,9 @@ pub(crate) fn shutdown_listener(app: &AppHandle) {
     let _ = app.global_shortcut().unregister_all();
 }
 pub(crate) fn quit_blink(app: &AppHandle) {
+    script_process::shutdown();
     app.state::<AppLifecycle>().0.store(true, Ordering::SeqCst);
     shutdown_listener(app);
-    {
-        let state = app.state::<SharedRuntime>();
-        let core = state.lock().expect("runtime lock");
-        let _ = core.repository.save(&core.repository_file);
-        let _ = core.bindings.save(&core.binding_file);
-    }
     app.exit(0);
 }
 fn current_platform() -> &'static str {
@@ -409,10 +412,13 @@ fn cancel_binding_capture(app: AppHandle) -> Result<(), String> {
 fn import_profiles(app: &AppHandle, profiles: Vec<Profile>) -> Result<(), String> {
     let state = app.state::<SharedRuntime>();
     let mut core = state.lock().expect("runtime lock");
-    for profile in profiles {
-        core.repository.insert_import(profile)?;
-    }
-    core.repository.save(&core.repository_file)
+    let file = core.repository_file.clone();
+    core.repository.change(&file, |repository| {
+        for profile in profiles {
+            repository.insert_import(profile)?;
+        }
+        Ok(())
+    })
 }
 #[tauri::command]
 fn load_profile(app: AppHandle, path: String) -> Result<(), String> {
@@ -566,8 +572,9 @@ fn unbind_profile(app: AppHandle, profile_id: String) -> Result<(), String> {
 fn rename_profile(app: AppHandle, profile_id: String, name: String) -> Result<(), String> {
     let state = app.state::<SharedRuntime>();
     let mut core = state.lock().expect("runtime lock");
-    core.repository.rename(&profile_id, name)?;
-    core.repository.save(&core.repository_file)
+    let file = core.repository_file.clone();
+    core.repository
+        .change(&file, |repository| repository.rename(&profile_id, name))
 }
 #[tauri::command]
 fn set_profile_icon(app: AppHandle, profile_id: String, icon_id: String) -> Result<(), String> {
@@ -586,57 +593,158 @@ fn set_profile_icon(app: AppHandle, profile_id: String, icon_id: String) -> Resu
     }
     Ok(())
 }
-#[tauri::command]
-fn delete_profile(app: AppHandle, profile_id: String) -> Result<(), String> {
-    {
-        let state = app.state::<SharedRuntime>();
-        let core = state.lock().expect("runtime lock");
-        if core
-            .repository
-            .find(&profile_id)
-            .is_some_and(|profile| profile.source == repository::ProfileSource::System)
-        {
-            return Err("系统内置 Profile 不支持删除".into());
+fn commit_configuration(
+    app: &AppHandle,
+    core: &mut RuntimeCore,
+    repository: ProfileRepository,
+    bindings: BindingState,
+) -> Result<(), String> {
+    let paused = core.listener_status == "PAUSED";
+    let dir = core.repository_file.parent().ok_or("配置目录不存在")?;
+    if !paused {
+        if let Err(error) = register_state(app, &bindings) {
+            if let Err(rollback) = register_state(app, &core.bindings) {
+                let _ = app.global_shortcut().unregister_all();
+                core.listener_status = "ERROR".into();
+                return Err(format!("{error}; 恢复监听失败: {rollback}"));
+            }
+            return Err(error);
         }
     }
-    unbind_profile(app.clone(), profile_id.clone())?;
-    let state = app.state::<SharedRuntime>();
-    let mut core = state.lock().expect("runtime lock");
-    // Keep the record visible/retryable if cleanup cannot be persisted.
-    let mut candidate = core.repository.clone();
-    let removed = candidate.delete(&profile_id)?;
-    candidate.save(&core.repository_file)?;
-    core.repository = candidate;
-    if let Some(dir) = core.repository_file.parent() {
-        app_icon::cleanup(dir, removed.icon_id.as_deref(), &core.repository);
+    if let Err(error) = persistence::commit(
+        dir,
+        &core.repository,
+        &core.bindings,
+        &repository,
+        &bindings,
+    ) {
+        if error.contains("RECOVERY_REQUIRED") {
+            let _ = app.global_shortcut().unregister_all();
+            core.listener_status = "ERROR".into();
+            // Never allow later writes to overwrite the durable undo record.
+            app.state::<AppLifecycle>().0.store(true, Ordering::SeqCst);
+            eprintln!("{error}");
+            app.exit(1);
+        } else if !paused {
+            if let Err(rollback) = register_state(app, &core.bindings) {
+                let _ = app.global_shortcut().unregister_all();
+                core.listener_status = "ERROR".into();
+                return Err(format!("{error}; 恢复监听失败: {rollback}"));
+            }
+        }
+        return Err(error);
     }
+    core.repository = repository;
+    core.bindings = bindings;
+    core.binding_capture = false;
+    core.listener_status = if paused { "PAUSED" } else { "LISTENING" }.into();
+    tray::update(app, &core.listener_status);
     Ok(())
 }
-#[tauri::command]
-fn delete_external_profiles(app: AppHandle, profile_ids: Vec<String>) -> Result<usize, String> {
-    let ids = {
-        let state = app.state::<SharedRuntime>();
-        let core = state.lock().expect("runtime lock");
-        core.repository.external_ids(&profile_ids)
-    };
-    for id in &ids {
-        unbind_profile(app.clone(), id.clone())?;
-    }
+fn delete_profiles(app: &AppHandle, selected: Vec<String>) -> Result<usize, String> {
     let state = app.state::<SharedRuntime>();
     let mut core = state.lock().expect("runtime lock");
-    let mut candidate = core.repository.clone();
+    let mut repository = core.repository.clone();
+    let mut bindings = core.bindings.clone();
     let mut removed = Vec::new();
-    for id in &ids {
-        removed.push(candidate.delete(id)?);
+    for id in selected.iter().collect::<HashSet<_>>() {
+        let item = repository.find(id).ok_or("RuntimeProfile 不存在")?;
+        if item.source == repository::ProfileSource::System {
+            return Err("系统内置 Profile 不支持删除".into());
+        }
+        removed.push(repository.delete(id)?);
+        bindings.unbind_profile(id);
     }
-    candidate.save(&core.repository_file)?;
-    core.repository = candidate;
+    commit_configuration(app, &mut core, repository, bindings)?;
     if let Some(dir) = core.repository_file.parent() {
-        for item in removed {
+        for item in &removed {
             app_icon::cleanup(dir, item.icon_id.as_deref(), &core.repository);
         }
     }
-    Ok(ids.len())
+    Ok(removed.len())
+}
+#[tauri::command]
+fn delete_profile(app: AppHandle, profile_id: String) -> Result<(), String> {
+    delete_profiles(&app, vec![profile_id]).map(|_| ())
+}
+#[tauri::command]
+fn delete_external_profiles(app: AppHandle, profile_ids: Vec<String>) -> Result<usize, String> {
+    delete_profiles(&app, profile_ids)
+}
+#[tauri::command]
+fn export_runtime(app: AppHandle, path: String, portable: bool) -> Result<(), String> {
+    let state = app.state::<SharedRuntime>();
+    let core = state.lock().expect("runtime lock");
+    let dir = core.repository_file.parent().ok_or("配置目录不存在")?;
+    // The file chooser is for export, never for overwriting live configuration.
+    let destination = std::path::Path::new(&path);
+    let parent = destination
+        .parent()
+        .ok_or("无效导出路径")?
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    if parent.starts_with(dir.canonicalize().map_err(|e| e.to_string())?) {
+        return Err("请选择 Blink 配置目录以外的备份位置".into());
+    }
+    if portable {
+        let profiles: Vec<_> = core
+            .repository
+            .profiles
+            .iter()
+            .filter(|p| p.source == repository::ProfileSource::External)
+            .map(|p| {
+                let mut profile = p.profile.clone();
+                profile.name = p.display_name().into();
+                profile
+            })
+            .collect();
+        persistence::write_json(destination, &profiles)
+    } else {
+        persistence::write_json(
+            destination,
+            &backup::capture(dir, &core.repository, &core.bindings, current_platform())?,
+        )
+    }
+}
+#[tauri::command]
+fn restore_runtime(app: AppHandle, path: String) -> Result<(), String> {
+    let backup = backup::read(std::path::Path::new(&path), current_platform())?;
+    let state = app.state::<SharedRuntime>();
+    let mut core = state.lock().expect("runtime lock");
+    let dir = core
+        .repository_file
+        .parent()
+        .ok_or("配置目录不存在")?
+        .to_owned();
+    for binding in &backup.bindings.bindings {
+        binding
+            .physical_input
+            .replace("META", "SUPER")
+            .parse::<Shortcut>()
+            .map_err(|e| e.to_string())?;
+        validate_binding_target(
+            &backup
+                .repository
+                .find(&binding.runtime_profile_id)
+                .ok_or("备份绑定目标不存在")?
+                .profile,
+            &binding.physical_input,
+        )?;
+    }
+    // Recovery point is written before changing anything, even if the selected backup is old.
+    persistence::write_json(
+        &dir.join("before-restore.backup.json"),
+        &backup::capture(&dir, &core.repository, &core.bindings, current_platform())?,
+    )?;
+    let mut repository = backup.repository.clone();
+    let icons = backup::install_icons(&dir, &mut repository, &backup.icons)?;
+    if let Err(error) = commit_configuration(&app, &mut core, repository, backup.bindings) {
+        for icon in icons {
+            app_icon::cleanup(&dir, Some(&icon), &core.repository);
+        }
+        return Err(error);
+    }
+    Ok(())
 }
 #[cfg(test)]
 mod consistency_tests {
@@ -668,39 +776,29 @@ fn main() {
             app.manage(AppLifecycle(AtomicBool::new(false)));
             let dir = app.path().app_data_dir()?;
             let repo_file = dir.join("profiles.json");
-            let mut repository = match ProfileRepository::load(&repo_file) {
-                Ok(repository) => repository,
+            let binding_file = dir.join("bindings.json");
+            let loaded = (|| -> Result<_, String> {
+                persistence::recover(&dir)?;
+                let mut repository = ProfileRepository::load(&repo_file)?;
+                let bindings = BindingState::load(&binding_file, &ids(&repository))?;
+                let seeded = repository.ensure_system_profiles()?;
+                if seeded { repository.save(&repo_file)?; }
+                Ok((repository, bindings))
+            })();
+            let (repository, bindings) = match loaded {
+                Ok(value) => value,
                 Err(error) => {
-                    // Returning this error from setup would panic inside macOS's
-                    // non-unwinding launch callback. Do not seed or save on failure.
-                    eprintln!("Blink 配置加载失败: {}: {error}", repo_file.display());
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.hide();
-                    }
+                    eprintln!("Blink 配置恢复失败: {error}");
+                    if let Some(window) = app.get_webview_window("main") { let _ = window.hide(); }
                     let handle = app.handle().clone();
-                    app.dialog()
-                        .message(format!(
-                            "无法加载本地配置，Blink 将退出。\n\n文件：{}\n\n原因：{error}\n\n原配置和绑定未被修改。请先备份，再检查配置格式或重置旧开发数据；当前支持 Profile v2.0 / v2.1。",
-                            repo_file.display()
-                        ))
-                        .title("Blink 配置加载失败")
-                        .kind(MessageDialogKind::Error)
-                        .show(move |_| {
+                    app.dialog().message(format!("无法恢复本地配置，Blink 将退出。\n\n目录：{}\n\n原因：{error}\n\n请保留原配置及恢复记录，检查文件格式或磁盘权限后重试。", dir.display()))
+                        .title("Blink 配置恢复失败").kind(MessageDialogKind::Error).show(move |_| {
                             handle.state::<AppLifecycle>().0.store(true, Ordering::SeqCst);
                             handle.exit(1);
                         });
                     return Ok(());
                 }
             };
-            let seeded = repository
-                .ensure_system_profiles()
-                .map_err(|error| std::io::Error::other(error))?;
-            if seeded {
-                repository.save(&repo_file).map_err(std::io::Error::other)?;
-            }
-            let binding_file = dir.join("bindings.json");
-            let bindings = BindingState::load(&binding_file, &ids(&repository));
-            bindings.save(&binding_file)?;
             app.manage(Mutex::new(RuntimeCore {
                 repository,
                 bindings,
@@ -728,6 +826,8 @@ fn main() {
             begin_binding_capture,
             cancel_binding_capture,
             load_profile,
+            export_runtime,
+            restore_runtime,
             create_runtime_profile,
             get_editable_profile,
             update_runtime_profile,
