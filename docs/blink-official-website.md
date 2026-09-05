@@ -312,3 +312,23 @@ npm --prefix website run preview
 
 - Preview 自动部署仍需进一步查明为何被 Cloudflare 标记为 `skipped`，并重新取得成功的 Preview URL 后再做浏览器、资源和控制台验证。
 - 自定义域名仍处于初始化/DNS 生效阶段，尚不能作为已完成线上访问证明。
+
+## 2026-09-05：main Merge 后 Cloudflare 触发解释
+
+### 事实
+
+- website 功能提交已在 `57174c2` 推送到 `main`；该 push 实际触发 GitHub Actions `Build Blink website` run `33953492406`，并成功完成 typecheck/build。
+- 随后的整体 merge commit `77f672f` 只带来了 `docs/blink-official-website.md`，没有新增或修改 `website/**`。
+- `.github/workflows/website.yml` 的 `push` 触发条件是 `branches: main` 且 `paths: website/**` 或 workflow 文件本身；因此 `77f672f` 不会再次触发 Website CI。
+- Cloudflare Pages 也配置为仅监视 `website/**`，所以 docs-only merge 不会触发 Cloudflare Production deployment。
+
+### 结论
+
+- 这不是 push 失败，也不是 Cloudflare 权限错误，而是路径过滤按预期跳过了不包含 website 文件的 merge push。
+- 需要重新部署时，应在 Cloudflare Pages 控制台对最近一次 Production deployment 执行 Retry，或推送实际包含 `website/**` 变更的提交；不应为了触发部署制造无意义的空代码提交。
+
+### 发布回执
+
+- 文档路径：`docs/blink-official-website.md`
+- 新增章节：`2026-09-05：main Merge 后 Cloudflare 触发解释`
+- 追加摘要：记录 `57174c2` 的成功 website CI、`77f672f` 的 docs-only merge、GitHub/Cloudflare `website/**` 路径过滤及正确重试方式。
