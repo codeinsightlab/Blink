@@ -251,10 +251,10 @@ jobs:
       - name: Write release notes
         shell: bash
         run: |
-          cat > release-notes.md <<'EOF'
-          ## Blink v0.1.0
+          cat > release-notes.md <<EOF
+          ## Blink ${RELEASE_TAG}
 
-          Blink 首个公开测试版本。
+          Blink ${RELEASE_TAG} 公开测试版本。
 
           ### macOS
 
