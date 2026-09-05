@@ -365,3 +365,26 @@ npm --prefix website run preview
 - 文档路径：`docs/blink-official-website.md`
 - 新增章节：`2026-09-05：Cloudflare Production 显示“暂无可用部署”排查`
 - 追加摘要：记录 GitHub CI 与 Cloudflare deployment 的边界、当前提交证据、路径过滤/分支控制/授权的排查顺序及未确认项。
+
+## 2026-09-05：工作流场景卡片切换出现追加内容
+
+### 根因
+
+- `website/src/App.tsx` 的工作流卡片列表原来使用第一列 `key` 作为 React key。
+- 同一场景的四张卡片第一列相同（例如都为“自定义按键”），形成重复 React key。
+- 切换场景或语言时，React 无法稳定对应旧节点与新节点，可能出现旧卡片残留、中英文混杂或内容像追加一样增长。
+
+### 修正
+
+- 改为使用 `scenario`、卡片索引、图标和名称组合的稳定唯一 key：`${scenario}-${index}-${icon}-${name}`。
+- 未修改工作流文案语义；保留用户对 `website/src/content.ts` 的现有未提交修改。
+
+### 验证
+
+- `website`: `npm run typecheck` 通过。
+- `website`: `npm run build` 通过。
+- 预渲染首页包含 4 张工作流卡片，未出现重复追加。
+
+### 发布边界
+
+- 本次修改尚未提交或推送；需要提交并触发 Cloudflare Pages 部署后，再验证线上场景切换。

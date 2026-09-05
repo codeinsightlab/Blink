@@ -173,8 +173,8 @@ export default function App() {
               <span className="small-note">{labels.scenarioNote}</span>
             </div>
             <div className="key-grid">
-              {active.items.map(([key, name, description, icon]) => (
-                <div className="key-item" key={key}>
+              {active.items.map(([key, name, description, icon], index) => (
+                <div className="key-item" key={`${scenario}-${index}-${icon}-${name}`}>
                   <div className={"app-icon " + icon}>
                     <Icon name={icon} />
                   </div>
