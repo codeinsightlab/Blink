@@ -1,8 +1,24 @@
 name: Verify Runtime and shared contract
 on:
   pull_request:
+    paths:
+      - "runtime/**"
+      - "packages/blink-contract/**"
+      - "tests/**"
+      - "package.json"
+      - "package-lock.json"
+      - "runtime/package-lock.json"
+      - ".github/workflows/verify.yml"
   push:
     branches: ["**"]
+    paths:
+      - "runtime/**"
+      - "packages/blink-contract/**"
+      - "tests/**"
+      - "package.json"
+      - "package-lock.json"
+      - "runtime/package-lock.json"
+      - ".github/workflows/verify.yml"
   workflow_call:
     inputs:
       source_ref:
