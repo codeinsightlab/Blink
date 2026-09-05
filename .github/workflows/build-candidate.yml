@@ -1,0 +1,148 @@
+name: Build Blink release candidate artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Commit SHA or branch to build (must be the reviewed release candidate)
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  build-macos-arm64:
+    name: Build macOS arm64 candidate DMG
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - name: Check out candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Verify candidate source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            runtime/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Install root workspace dependencies
+        run: npm ci
+
+      - name: Validate shared contract and Studio TypeScript
+        run: npm run typecheck
+
+      - name: Install Runtime dependencies
+        working-directory: runtime
+        run: npm ci
+
+      - name: Build production DMG
+        working-directory: runtime
+        run: npm run tauri -- build --target aarch64-apple-darwin --bundles dmg
+
+      - name: Verify DMG and calculate SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(runtime/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg)
+          test "${#files[@]}" -eq 1
+          hdiutil verify "${files[0]}"
+          mkdir -p release-assets-macos
+          cp "${files[0]}" release-assets-macos/
+          shasum -a 256 "${files[0]}" | tee release-assets-macos/checksums.txt
+
+      - name: Upload macOS candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blink-v0.1.1-macos-arm64
+          path: release-assets-macos/
+          if-no-files-found: error
+
+  build-windows-x64:
+    name: Build Windows x64 candidate installers
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Check out candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+
+      - name: Verify candidate source identity
+        shell: pwsh
+        run: git rev-parse HEAD
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            runtime/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install root workspace dependencies
+        run: npm ci
+
+      - name: Validate shared contract and Studio TypeScript
+        run: npm run typecheck
+
+      - name: Install Runtime dependencies
+        working-directory: runtime
+        run: npm ci
+
+      - name: Build production NSIS and MSI installers
+        working-directory: runtime
+        run: npm run tauri -- build --target x86_64-pc-windows-msvc --bundles nsis,msi
+
+      - name: Verify installers and calculate SHA-256
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(
+            Get-ChildItem 'runtime/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis' -Filter '*.exe' -File -ErrorAction SilentlyContinue
+            Get-ChildItem 'runtime/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi' -Filter '*.msi' -File -ErrorAction SilentlyContinue
+          )
+          if ($files.Count -lt 1) { throw 'No Windows production installer was generated.' }
+          New-Item -ItemType Directory -Force 'release-assets-windows' | Out-Null
+          $checksumLines = foreach ($file in $files) {
+            Copy-Item $file.FullName 'release-assets-windows/'
+            $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($file.Name)"
+          }
+          $checksumLines | Set-Content -Encoding utf8 'release-assets-windows/checksums.txt'
+          $checksumLines | Write-Host
+
+      - name: Upload Windows candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blink-v0.1.1-windows-x64
+          path: release-assets-windows/
+          if-no-files-found: error
