@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   ArrowRight,
@@ -22,7 +22,8 @@ import {
 } from "lucide-react";
 import { ProductShowcase } from "./ProductShowcase";
 import { KeyboardStory } from "./KeyboardStory";
-import { copy, labels, hardwareValues, DOWNLOAD_URL_PLACEHOLDER } from "./content";
+import { copy as baseCopy, copyEn, labels as baseLabels, labelsEn, hardwareValues } from "./content";
+import { detectPlatform, resolveLatestDownload, RELEASE_PAGE_URL, type SupportedPlatform } from "./downloads";
 const icons: Record<string, typeof Command> = {
   code: Code2,
   terminal: Terminal,
@@ -43,7 +44,7 @@ function Icon({ name }: { name: string }) {
   const C = icons[name] || Command;
   return <C aria-hidden="true" size={24} />;
 }
-function Brand() {
+function Brand({ labels }: { labels: typeof baseLabels }) {
   return (
     <a className="brand" href="#top" aria-label={labels.homeLabel}>
       <img src="/blink.svg" alt="" width="36" height="36" />
@@ -53,11 +54,33 @@ function Brand() {
 }
 export default function App() {
   const [scenario, setScenario] = useState(0);
+  const [language, setLanguage] = useState<"zh" | "en">(() => {
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("blink-language") : null;
+    if (saved === "zh" || saved === "en") return saved;
+    return typeof navigator === "undefined" || navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+  });
+  const [platform, setPlatform] = useState<SupportedPlatform>("other");
+  const [downloadUrl, setDownloadUrl] = useState(RELEASE_PAGE_URL);
+  const [downloadLoading, setDownloadLoading] = useState(true);
+  const labels = language === "en" ? { ...baseLabels, ...labelsEn } : baseLabels;
+  const copy = language === "en" ? copyEn : baseCopy;
   const active = copy.scenarios[scenario];
-  const hasDownload = DOWNLOAD_URL_PLACEHOLDER !== "#download";
-  const primaryCta = hasDownload
-    ? { href: DOWNLOAD_URL_PLACEHOLDER, label: labels.download }
-    : { href: "mailto:" + copy.email + "?subject=Blink%20%E7%94%B3%E8%AF%B7%E5%86%85%E6%B5%8B", label: labels.betaCta };
+
+  useEffect(() => {
+    window.localStorage.setItem("blink-language", language);
+    document.documentElement.lang = language === "en" ? "en" : "zh-CN";
+  }, [language]);
+
+  useEffect(() => {
+    const detected = detectPlatform();
+    setPlatform(detected);
+    resolveLatestDownload(detected)
+      .then(setDownloadUrl)
+      .catch(() => setDownloadUrl(RELEASE_PAGE_URL))
+      .finally(() => setDownloadLoading(false));
+  }, []);
+
+  const primaryCta = { href: downloadUrl, label: downloadLoading ? (language === "en" ? "Finding your download" : "正在匹配下载地址") : labels.download };
   return (
     <>
       <a className="skip" href="#main">
@@ -65,7 +88,10 @@ export default function App() {
       </a>
       <header>
         <nav className="nav container" aria-label={labels.navLabel}>
-          <Brand />
+          <Brand labels={labels} />
+          <button className="language-toggle" type="button" onClick={() => setLanguage(language === "en" ? "zh" : "en")} aria-label={language === "en" ? "切换为中文" : "Switch to English"}>
+            {language === "en" ? "中文" : "EN"}
+          </button>
           <div className="nav-links">
             <a href="#features">{labels.navFeatures}</a>
             <a href="#scenarios">{labels.navScenarios}</a>
@@ -104,9 +130,9 @@ export default function App() {
           <p className="availability">
             {labels.macFirst}
             <span>{labels.separator}</span>
-            {hasDownload ? labels.downloadReady : labels.early}
+            {downloadLoading ? (language === "en" ? "Finding the latest release" : "正在获取最新版本") : labels.downloadReady}
           </p>
-          <ProductShowcase />
+          <ProductShowcase language={language} />
           <div className="hero-foot">
             <span>
               <Keyboard size={15} />
@@ -183,7 +209,7 @@ export default function App() {
               </div>
               <p className="small-note">{labels.keysNote}</p>
             </div>
-            <KeyboardStory icon={(name) => <Icon name={name} />} />
+            <KeyboardStory language={language} icon={(name) => <Icon name={name} />} />
           </div>
         </section>
         <section className="section container" id="features">
@@ -200,7 +226,7 @@ export default function App() {
               <article className="feature-card" key={title}>
                 <div className="feature-top">
                   <Icon name={icon} />
-                  <span className={status === "即将支持" ? "label pending-label" : "label supported-label"}>
+                  <span className={status === "即将支持" || status === "Coming soon" ? "label pending-label" : "label supported-label"}>
                     {status}
                   </span>
                 </div>
@@ -270,26 +296,11 @@ export default function App() {
             {labels.downloadTitleAccent}
           </h2>
           <p>{labels.tagline}</p>
-          {hasDownload ? (
-            <a className="button primary" href={DOWNLOAD_URL_PLACEHOLDER}>
-              <Download size={17} />
-              {labels.downloadMac}
-            </a>
-          ) : (
-            <>
-              <a className="button primary" href={primaryCta.href}>
-                <Download size={17} />
-                {labels.betaCta}
-              </a>
-              <p className="download-note">
-                {labels.downloadNote}
-                <a href={"mailto:" + copy.email}>
-                  {labels.contactAuthor}
-                  <ArrowUpRight size={13} />
-                </a>
-              </p>
-            </>
-          )}
+          <a className="button primary" href={downloadUrl}>
+            <Download size={17} />
+            {downloadLoading ? (language === "en" ? "Finding your download" : "正在匹配下载地址") : platform === "windows" ? (language === "en" ? "Download for Windows" : "下载 Windows 版") : platform === "macos" ? labels.downloadMac : (language === "en" ? "View all downloads" : "查看全部下载")}
+          </a>
+          <p className="download-note">{labels.downloadNote}</p>
           <div className="platforms">
             <span>
               {labels.mac}
@@ -305,7 +316,7 @@ export default function App() {
       <footer className="container">
         <div className="footer-top">
           <div>
-            <Brand />
+            <Brand labels={labels} />
             <p>{labels.footerTagline}</p>
           </div>
           <div className="footer-links">
