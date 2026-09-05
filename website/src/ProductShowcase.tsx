@@ -2,6 +2,7 @@ import { useState } from "react";
 import { productViews, showcaseLabels } from "./content";
 
 /** Explicit user-controlled views: no timer, autoplay or external carousel dependency. */
+// Cloudflare Preview verification marker; behavior and product copy remain unchanged.
 export function ProductShowcase() {
   const [selected, setSelected] = useState(0);
   const view = productViews[selected];
