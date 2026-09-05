@@ -332,3 +332,36 @@ npm --prefix website run preview
 - 文档路径：`docs/blink-official-website.md`
 - 新增章节：`2026-09-05：main Merge 后 Cloudflare 触发解释`
 - 追加摘要：记录 `57174c2` 的成功 website CI、`77f672f` 的 docs-only merge、GitHub/Cloudflare `website/**` 路径过滤及正确重试方式。
+
+## 2026-09-05：Cloudflare Production 显示“暂无可用部署”排查
+
+### 事实
+
+- Cloudflare Pages 的提交列表能看到 `128beb7`、`b5ca0b8`，但部署列显示“暂无可用部署”；这表示 Cloudflare Git 集成看到了提交记录，不等于已经创建了可访问的 Pages deployment。
+- GitHub Actions `Build Blink website` 对 `128beb7` 的 run `33953867064` 已成功完成；因此当前证据支持“仓库代码与 GitHub CI 正常”，不支持“GitHub push 失败”。
+- 两个提交均包含 `website/**` 变更，按当前配置本应满足 Cloudflare 的网站路径过滤条件；因此需要在 Cloudflare 该提交的“详细”页区分 `skipped`、构建失败、分支部署控制或 GitHub 授权失效。
+
+### 建议检查顺序
+
+1. Pages 项目 `blink` → Settings → Builds & deployments：确认连接仓库为 `codeinsightlab/Blink`、Production branch 为 `main`、自动部署未暂停。
+2. 确认 Root directory 为 `website`、Build command 为 `npm run build`、Output directory 为 `dist`、Node 为 22。
+3. 检查 Build watch paths 的 include/exclude。为诊断可暂时将 include 放宽为 `*`（并移除匹配 `website` 的 exclude），保存后对 `128beb7` 执行 Retry；成功后再收窄为能匹配仓库路径的 `website/*`。
+4. 若详情仍显示 skipped，检查该项目的 Branch deployment controls 与 Cloudflare GitHub App 对 Private `Blink` 的授权；若显示 failed，则以构建日志中的首个 error 为准，不把 GitHub Actions 成功当作 Cloudflare 部署成功。
+
+### 结论边界
+
+- “GitHub Actions 成功”与“Cloudflare Pages 生成 deployment”是两条独立链路；前者不能证明后者。
+- 在 Cloudflare 详情页得到 `success` 和 deployment URL 之前，不能把 `https://blink-4zm.pages.dev/` 视为本次提交已部署，也不能声称公开线上内容已更新。
+
+### 根因定位与修正
+
+- 已核对 Pages 提交记录中的 `128beb7` 与当前 Private 源码仓库 `codeinsightlab/Blink` 的 `main` 提交完全一致；因此“连接了最初旧 Git 仓库”不是当前证据支持的根因。
+- GitHub 对该提交只有 Website CI 成功检查，没有 Cloudflare Pages check run；结合 Cloudflare 显示“暂无可用部署”，更符合 Pages 在部署创建前被跳过，而不是构建失败。
+- Cloudflare 官方 Build Watch Paths 语法使用单个 `*` 匹配跨目录路径，官方 monorepo 示例为 `project-a/*`。因此将 Pages Include 从 `website/**` 修正为 `website/*`（或先临时使用 `*`）是必要的仓库外配置修正；GitHub Actions 中的 `website/**` 不需要改动。
+- 修正后应在 Cloudflare 对提交 `128beb7` Retry；只有看到成功 deployment URL，才算完成线上部署验证。
+
+### 发布回执
+
+- 文档路径：`docs/blink-official-website.md`
+- 新增章节：`2026-09-05：Cloudflare Production 显示“暂无可用部署”排查`
+- 追加摘要：记录 GitHub CI 与 Cloudflare deployment 的边界、当前提交证据、路径过滤/分支控制/授权的排查顺序及未确认项。
