@@ -139,6 +139,21 @@ footer a:hover {
   font-size: 12px;
 }
 
+.language-toggle {
+  border: 1px solid #ffffff22;
+  background: #ffffff06;
+  color: #aeb8c4;
+  border-radius: 7px;
+  padding: 9px 11px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.language-toggle:hover {
+  color: #fff;
+  border-color: #ffffff45;
+}
+
 .hero {
   text-align: center;
   padding-top: 65px;

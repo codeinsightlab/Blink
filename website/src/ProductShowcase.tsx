@@ -3,14 +3,19 @@ import { productViews, showcaseLabels } from "./content";
 
 /** Explicit user-controlled views: no timer, autoplay or external carousel dependency. */
 // Cloudflare Preview verification marker; behavior and product copy remain unchanged.
-export function ProductShowcase() {
+export function ProductShowcase({ language = "zh" }: { language?: "zh" | "en" }) {
   const [selected, setSelected] = useState(0);
   const view = productViews[selected];
+  const viewCopy = language === "en" ? {
+    commands: { label: "Command Deck", title: "All your commands, here.", description: "See the commands you created, their action sources, and binding status at a glance.", detail: "Real Runtime UI" },
+    create: { label: "Create command", title: "Choose an action. Name it.", description: "Creator brings action type, target, and command name into one clear view.", detail: "Real Creator UI" },
+    binding: { label: "Bind a key", title: "Press a physical key to bind it.", description: "Blink enters capture mode, saves the physical key, and shows the resulting keycap.", detail: "Real Runtime binding state" },
+  }[view.id] : view;
   return (
     <div className="product-showcase">
       <div className="showcase-toolbar">
-        <p className="eyebrow">{showcaseLabels.eyebrow}</p>
-        <div className="showcase-controls" role="group" aria-label={showcaseLabels.group}>
+        <p className="eyebrow">{language === "en" ? "BLINK, FROM COMMAND TO KEY" : showcaseLabels.eyebrow}</p>
+        <div className="showcase-controls" role="group" aria-label={language === "en" ? "Switch product view" : showcaseLabels.group}>
           {productViews.map((item, index) => (
             <button
               type="button"
@@ -20,7 +25,7 @@ export function ProductShowcase() {
               onClick={() => setSelected(index)}
             >
               <span aria-hidden="true">0{index + 1}</span>
-              {item.label}
+              {language === "en" ? viewCopyFor(item.id).label : item.label}
             </button>
           ))}
         </div>
@@ -32,7 +37,7 @@ export function ProductShowcase() {
               {view.images.map((image, index) => (
                 <div className="showcase-screen" key={image.src}>
                   {view.images.length > 1 && (
-                    <span className="screen-state">{index === 0 ? "捕获中" : "已绑定"}</span>
+                    <span className="screen-state">{index === 0 ? (language === "en" ? "Capturing" : "捕获中") : language === "en" ? "Bound" : "已绑定"}</span>
                   )}
                   <img
                     className="showcase-image"
@@ -46,21 +51,29 @@ export function ProductShowcase() {
               ))}
             </div>
           </div>
-          <figcaption>{view.caption}</figcaption>
+          <figcaption>{language === "en" ? "Real Runtime interface" : view.caption}</figcaption>
         </figure>
         <aside className="showcase-copy">
           <span className="view-number" aria-hidden="true">
             0{selected + 1}
             <small> / 03</small>
           </span>
-          <h2>{view.title}</h2>
-          <p>{view.description}</p>
+          <h2>{viewCopy.title}</h2>
+          <p>{viewCopy.description}</p>
           <span className="showcase-detail">
-            <span className="label">{view.id === "binding" ? "示例流程" : "已支持"}</span>
-            {view.detail}
+            <span className="label">{view.id === "binding" ? (language === "en" ? "Example flow" : "示例流程") : language === "en" ? "Supported" : "已支持"}</span>
+            {viewCopy.detail}
           </span>
         </aside>
       </div>
     </div>
   );
+}
+
+function viewCopyFor(id: string) {
+  return {
+    commands: { label: "Command Deck" },
+    create: { label: "Create command" },
+    binding: { label: "Bind a key" },
+  }[id as "commands" | "create" | "binding"];
 }
