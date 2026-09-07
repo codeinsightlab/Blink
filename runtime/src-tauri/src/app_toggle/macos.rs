@@ -292,15 +292,34 @@ impl DesktopAppController for MacDesktopAppController {
         if app.activationPolicy() != NSApplicationActivationPolicy::Regular {
             return Err(AppControlError::Unsupported);
         }
-        let unhide_accepted = !app.isHidden() || app.unhide();
-        match windows(app.processIdentifier(), true) {
-            Ok((_, count)) => eprintln!("toggle_app ax_restore_requests={count}"),
-            Err(error) => eprintln!("toggle_app ax_restore_degraded={error}"),
-        }
+        let hidden_before = app.isHidden();
+        let window_state = windows(app.processIdentifier(), false);
+        let minimized_before = window_state.as_ref().map(|(_, count)| *count).unwrap_or(0);
+        let strategy = if hidden_before {
+            "UnhideThenActivate"
+        } else if minimized_before > 0 {
+            "RestoreThenActivate"
+        } else {
+            "ActivateExisting"
+        };
+        eprintln!("toggle_app reveal_strategy={strategy} hidden_before={hidden_before} restore_requests=0");
+        let unhide_accepted = !hidden_before || app.unhide();
+        let restore_requests = if minimized_before > 0 {
+            match windows(app.processIdentifier(), true) {
+                Ok((_, count)) => count,
+                Err(error) => {
+                    eprintln!("toggle_app ax_restore_degraded={error}");
+                    0
+                }
+            }
+        } else {
+            0
+        };
+        eprintln!("toggle_app ax_restore_requests={restore_requests}");
         #[allow(deprecated)]
         let activated =
             app.activateWithOptions(NSApplicationActivationOptions::ActivateIgnoringOtherApps);
-        let unhidden = Self::wait_hidden(&target.bundle_id, false);
+        let unhidden = !hidden_before || Self::wait_hidden(&target.bundle_id, false);
         eprintln!("toggle_app unhide_accepted={unhide_accepted} observed_unhidden={unhidden} activation_accepted={activated}");
         let focus_deadline = Instant::now() + Duration::from_millis(700);
         let focused = loop {

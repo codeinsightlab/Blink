@@ -68,12 +68,9 @@ impl AppToggleService {
             _ => "Reveal",
         };
         let result = match state {
-            AppState::NotRunning => controller.launch(target).map(|()| {
-                // The adapter polls briefly. A successful asynchronous launch remains successful.
-                if let Err(error) = controller.reveal(target) {
-                    eprintln!("toggle_app launch_reveal_degraded={error:?}");
-                }
-            }),
+            AppState::NotRunning => controller
+                .launch(target)
+                .and_then(|()| controller.reveal(target)),
             AppState::Foreground => controller.conceal(target),
             _ => controller.reveal(target),
         };
@@ -172,7 +169,7 @@ mod tests {
         assert_eq!(*mock.calls.borrow(), vec!["query", "reveal"]);
     }
     #[test]
-    fn launch_failure_stops_and_delayed_window_is_degraded_success() {
+    fn launch_failure_stops_and_reveal_failure_is_reported() {
         let target = AppTarget {
             bundle_id: "test.app".into(),
             path: None,
@@ -190,6 +187,6 @@ mod tests {
             fail_reveal: true,
             ..mock
         };
-        assert!(AppToggleService::toggle(&mock, &target).is_ok());
+        assert!(AppToggleService::toggle(&mock, &target).is_err());
     }
 }

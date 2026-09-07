@@ -296,13 +296,11 @@ impl DesktopAppController for WindowsDesktopAppController {
             return Ok(AppState::Minimized);
         }
         let foreground = unsafe { GetForegroundWindow() };
-        Ok(
-            if unsafe { GetAncestor(foreground, GA_ROOTOWNER) } == window.hwnd {
-                AppState::Foreground
-            } else {
-                AppState::Background
-            },
-        )
+        Ok(if unsafe { GetAncestor(foreground, GA_ROOTOWNER) } == window.hwnd {
+            AppState::Foreground
+        } else {
+            AppState::Background
+        })
     }
     fn launch(&self, target: &AppTarget) -> Result<(), AppControlError> {
         Command::new(
