@@ -1,4 +1,5 @@
 use super::*;
+use dispatch2::DispatchQueue;
 use objc2::rc::{autoreleasepool, Retained};
 use objc2_app_kit::{
     NSApplicationActivationOptions, NSApplicationActivationPolicy, NSRunningApplication,
@@ -161,6 +162,18 @@ fn normalize(hidden: bool, active: bool, windows: Result<(usize, usize), String>
 }
 struct MacDesktopAppController;
 impl MacDesktopAppController {
+    fn activate_on_main_thread(pid: i32) -> bool {
+        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+        DispatchQueue::main().exec_sync(move || {
+            let accepted = NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
+                .is_some_and(|app| {
+                    app.activateWithOptions(NSApplicationActivationOptions::empty())
+                });
+            let _ = sender.send(accepted);
+        });
+        receiver.recv().unwrap_or(false)
+    }
+
     fn resolve(ids: &[String], paths: &[String]) -> Result<AppTarget, AppControlError> {
         if ids.len() > 1 || paths.len() > 1 {
             return Err(AppControlError::InvalidTarget);
@@ -224,35 +237,25 @@ impl MacDesktopAppController {
 impl DesktopAppController for MacDesktopAppController {
     fn query_state(&self, target: &AppTarget) -> Result<AppState, AppControlError> {
         let Some(app) = Self::running(&target.bundle_id)? else {
+            eprintln!("toggle_app platform=macos running=false chosen_operation=LaunchAndActivate");
             return Ok(AppState::NotRunning);
         };
         if app.activationPolicy() != NSApplicationActivationPolicy::Regular {
             return Err(AppControlError::Unsupported);
         }
-        if app.isHidden() {
-            return Ok(AppState::Hidden);
-        }
         let pid = app.processIdentifier();
-        if pid <= 0 {
-            return Ok(AppState::Unknown);
-        }
-        let visible_window = has_visible_window(pid);
-        let ax_windows = windows(pid, false);
-        if ax_windows.as_ref().is_ok_and(|value| *value == (0, 0)) && visible_window {
-            eprintln!("toggle_app ax_windows_empty_cg_visible=true");
-        } else if let Err(error) = &ax_windows {
-            eprintln!("toggle_app ax_query_degraded={error} cg_visible={visible_window}");
-        }
-        let window_state = merge_window_evidence(ax_windows, visible_window);
         let frontmost = NSWorkspace::sharedWorkspace().frontmostApplication();
         let active = frontmost
             .as_ref()
             .is_some_and(|front| front.processIdentifier() == pid);
-        eprintln!("toggle_app bundle_id={} pid={pid} is_active={} frontmost_pid={:?} hidden={} windows={window_state:?}", target.bundle_id, app.isActive(), frontmost.as_ref().map(|front| front.processIdentifier()), app.isHidden());
-        Ok(if frontmost.is_none() {
-            AppState::Unknown
+        eprintln!("toggle_app platform=macos pid={pid} running=true frontmost_pid_before={:?} is_frontmost_before={active} hidden_before={}", frontmost.as_ref().map(|front| front.processIdentifier()), app.isHidden());
+        // These enum values adapt to the existing service, not window states.
+        Ok(if active {
+            AppState::Foreground
+        } else if app.isHidden() {
+            AppState::Hidden
         } else {
-            normalize(app.isHidden(), active, window_state)
+            AppState::Background
         })
     }
     fn launch(&self, target: &AppTarget) -> Result<(), AppControlError> {
@@ -293,34 +296,15 @@ impl DesktopAppController for MacDesktopAppController {
             return Err(AppControlError::Unsupported);
         }
         let hidden_before = app.isHidden();
-        let window_state = windows(app.processIdentifier(), false);
-        let minimized_before = window_state.as_ref().map(|(_, count)| *count).unwrap_or(0);
         let strategy = if hidden_before {
-            "UnhideThenActivate"
-        } else if minimized_before > 0 {
-            "RestoreThenActivate"
+            "UnhideAndActivate"
         } else {
             "ActivateExisting"
         };
-        eprintln!("toggle_app reveal_strategy={strategy} hidden_before={hidden_before} restore_requests=0");
+        eprintln!("toggle_app platform=macos pid={} chosen_operation={strategy} hidden_before={hidden_before}", app.processIdentifier());
         let unhide_accepted = !hidden_before || app.unhide();
-        let restore_requests = if minimized_before > 0 {
-            match windows(app.processIdentifier(), true) {
-                Ok((_, count)) => count,
-                Err(error) => {
-                    eprintln!("toggle_app ax_restore_degraded={error}");
-                    0
-                }
-            }
-        } else {
-            0
-        };
-        eprintln!("toggle_app ax_restore_requests={restore_requests}");
-        #[allow(deprecated)]
-        let activated =
-            app.activateWithOptions(NSApplicationActivationOptions::ActivateIgnoringOtherApps);
-        let unhidden = !hidden_before || Self::wait_hidden(&target.bundle_id, false);
-        eprintln!("toggle_app unhide_accepted={unhide_accepted} observed_unhidden={unhidden} activation_accepted={activated}");
+        let activated = Self::activate_on_main_thread(app.processIdentifier());
+        eprintln!("toggle_app activation_method=NSRunningApplication.activate(main_thread) options=empty unhide_accepted={unhide_accepted} activation_accepted={activated}");
         let focus_deadline = Instant::now() + Duration::from_millis(700);
         let focused = loop {
             if NSWorkspace::sharedWorkspace()
@@ -335,14 +319,17 @@ impl DesktopAppController for MacDesktopAppController {
             thread::sleep(Duration::from_millis(50));
         };
         eprintln!(
-            "toggle_app observed_frontmost={focused} bundle_id={}",
+            "toggle_app frontmost_pid_after={:?} observed_frontmost={focused} bundle_id={}",
+            NSWorkspace::sharedWorkspace()
+                .frontmostApplication()
+                .map(|front| front.processIdentifier()),
             target.bundle_id
         );
-        if unhidden && focused {
+        if focused {
             Ok(())
         } else {
             Err(AppControlError::RevealFailed(format!(
-                "unhidden={unhidden} activation_accepted={activated} observed_frontmost={focused}"
+                "activation_accepted={activated} observed_frontmost={focused}"
             )))
         }
     }
@@ -352,6 +339,10 @@ impl DesktopAppController for MacDesktopAppController {
             return self.reveal(target);
         }
         let app = Self::running(&target.bundle_id)?.ok_or(AppControlError::TargetNotFound)?;
+        eprintln!(
+            "toggle_app platform=macos pid={} chosen_operation=Hide",
+            app.processIdentifier()
+        );
         let accepted = app.hide();
         let observed_hidden = Self::wait_hidden(&target.bundle_id, true);
         eprintln!("toggle_app hide_accepted={accepted} observed_hidden={observed_hidden}");
@@ -472,14 +463,36 @@ mod tests {
         autoreleasepool(|_| {
             let target = MacDesktopAppController::resolve(&[], &[path]).unwrap();
             let controller = MacDesktopAppController;
-            controller.reveal(&target).unwrap();
+            if controller.query_state(&target).unwrap() == AppState::NotRunning {
+                AppToggleService::toggle(&controller, &target).unwrap();
+            } else {
+                controller.reveal(&target).unwrap();
+            }
             assert_eq!(
                 controller.query_state(&target).unwrap(),
                 AppState::Foreground
             );
-            AppToggleService::toggle(&controller, &target).unwrap();
-            assert_eq!(controller.query_state(&target).unwrap(), AppState::Hidden);
-            controller.reveal(&target).unwrap();
+            let pid = MacDesktopAppController::running(&target.bundle_id)
+                .unwrap()
+                .unwrap()
+                .processIdentifier();
+            for round in 0..3 {
+                AppToggleService::toggle(&controller, &target).unwrap();
+                assert_eq!(controller.query_state(&target).unwrap(), AppState::Hidden);
+                AppToggleService::toggle(&controller, &target).unwrap();
+                assert_eq!(
+                    controller.query_state(&target).unwrap(),
+                    AppState::Foreground
+                );
+                assert_eq!(
+                    MacDesktopAppController::running(&target.bundle_id)
+                        .unwrap()
+                        .unwrap()
+                        .processIdentifier(),
+                    pid
+                );
+                eprintln!("NATIVE_CYCLE round={round} pid={pid} hidden_then_frontmost=true");
+            }
             assert_eq!(
                 controller.query_state(&target).unwrap(),
                 AppState::Foreground
