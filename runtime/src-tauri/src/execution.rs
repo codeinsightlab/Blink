@@ -217,12 +217,10 @@ fn run_script_with_timeout(path: &str, timeout: std::time::Duration) -> Result<(
 }
 
 #[cfg(target_os = "macos")]
-fn launch_app(
-    _: &[String],
+pub(crate) fn open_app_macos(
     bundle_ids: &[String],
     app_names: &[String],
     known_paths: &[String],
-    _: &[String],
 ) -> Result<(), String> {
     for bundle_id in bundle_ids {
         if Command::new("open")
@@ -252,6 +250,17 @@ fn launch_app(
         }
     }
     Err("未能通过 bundleIds、appNames 或 knownPaths 启动应用".into())
+}
+
+#[cfg(target_os = "macos")]
+fn launch_app(
+    _: &[String],
+    bundle_ids: &[String],
+    app_names: &[String],
+    known_paths: &[String],
+    _: &[String],
+) -> Result<(), String> {
+    open_app_macos(bundle_ids, app_names, known_paths)
 }
 
 #[cfg(target_os = "windows")]

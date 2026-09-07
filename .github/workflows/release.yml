@@ -24,6 +24,8 @@ jobs:
     name: Verify release tag and publishing credential
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      version: ${{ steps.resolve-version.outputs.version }}
     steps:
       - name: Check out immutable release tag
         uses: actions/checkout@v4
@@ -43,6 +45,19 @@ jobs:
             test "${actual_head}" = "53fa73c05a3ef41e4d9f3e75028a29a8ab63f6b6"
           fi
 
+      - name: Resolve release version from tag
+        id: resolve-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          version="${RELEASE_TAG#v}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved VERSION=${version}"
+
       - name: Require cross-repository release token
         env:
           RELEASE_TOKEN: ${{ secrets.BLINK_RELEASE_TOKEN }}
@@ -60,6 +75,8 @@ jobs:
   build-macos-arm64:
     name: Build macOS arm64 DMG
     needs: [preflight, verify]
+    env:
+      VERSION: ${{ needs.preflight.outputs.version }}
     runs-on: macos-14
     timeout-minutes: 45
     steps:
@@ -80,6 +97,35 @@ jobs:
           if [[ "${RELEASE_TAG}" = "v0.1.0" ]]; then
             test "${actual_head}" = "53fa73c05a3ef41e4d9f3e75028a29a8ab63f6b6"
           fi
+
+      - name: Inject tag version into Tauri metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import re
+
+          version = "${VERSION}"
+          cargo = pathlib.Path("runtime/src-tauri/Cargo.toml")
+          text = cargo.read_text()
+          text, count = re.subn(r'(?m)^(version\s*=\s*)"[^"]+"$', rf'\1"{version}"', text, count=1)
+          if count != 1:
+              raise SystemExit("Cargo package version was not found exactly once")
+          cargo.write_text(text)
+          lock = pathlib.Path("runtime/src-tauri/Cargo.lock")
+          lock_text = lock.read_text()
+          lock_text, lock_count = re.subn(r'(?s)(name = "blink-runtime"\nversion = )"[^"]+"', rf'\1"{version}"', lock_text, count=1)
+          if lock_count != 1:
+              raise SystemExit("blink-runtime lock package was not found exactly once")
+          lock.write_text(lock_text)
+          config = pathlib.Path("runtime/src-tauri/tauri.conf.json")
+          data = json.loads(config.read_text())
+          data["version"] = version
+          config.write_text(json.dumps(data, indent=2) + "\n")
+          print(f"Injected VERSION={version} into Cargo.toml, Cargo.lock and tauri.conf.json")
+          PY
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -139,6 +185,8 @@ jobs:
   build-windows-x64:
     name: Build Windows x64 installers
     needs: [preflight, verify]
+    env:
+      VERSION: ${{ needs.preflight.outputs.version }}
     runs-on: windows-2022
     timeout-minutes: 45
     steps:
@@ -161,6 +209,27 @@ jobs:
           if ($env:RELEASE_TAG -eq 'v0.1.0' -and $actualHead -ne '53fa73c05a3ef41e4d9f3e75028a29a8ab63f6b6') {
             throw 'v0.1.0 does not point to the immutable expected release commit.'
           }
+
+      - name: Inject tag version into Tauri metadata
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:VERSION
+          $cargo = 'runtime/src-tauri/Cargo.toml'
+          $cargoText = Get-Content $cargo -Raw
+          $updated = [regex]::Replace($cargoText, '(?m)^version\s*=\s*"[^"]+"$', "version = `"$version`"", 1)
+          if ($updated -eq $cargoText) { throw 'Cargo package version was not found.' }
+          Set-Content -Path $cargo -Value $updated -NoNewline
+          $lock = 'runtime/src-tauri/Cargo.lock'
+          $lockText = Get-Content $lock -Raw
+          $lockUpdated = [regex]::Replace($lockText, '(?s)(name = "blink-runtime"\r?\nversion = )"[^"]+"', "`$1`"$version`"", 1)
+          if ($lockUpdated -eq $lockText) { throw 'blink-runtime lock package was not found.' }
+          Set-Content -Path $lock -Value $lockUpdated -NoNewline
+          $config = 'runtime/src-tauri/tauri.conf.json'
+          $data = Get-Content $config -Raw | ConvertFrom-Json
+          $data.version = $version
+          $data | ConvertTo-Json -Depth 20 | Set-Content $config
+          Write-Host "Injected VERSION=$version into Cargo.toml, Cargo.lock and tauri.conf.json"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

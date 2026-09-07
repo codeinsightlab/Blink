@@ -225,6 +225,31 @@ impl MacDesktopAppController {
             thread::sleep(Duration::from_millis(50));
         }
     }
+
+    fn open_and_verify(&self, target: &AppTarget) -> Result<(), AppControlError> {
+        let bundle_ids = vec![target.bundle_id.clone()];
+        let paths = target.path.clone().into_iter().collect::<Vec<_>>();
+        crate::execution::open_app_macos(&bundle_ids, &[], &paths)
+            .map_err(AppControlError::LaunchFailed)?;
+        let deadline = Instant::now() + Duration::from_millis(1500);
+        loop {
+            if let Some(app) = Self::running(&target.bundle_id)? {
+                if NSWorkspace::sharedWorkspace()
+                    .frontmostApplication()
+                    .as_ref()
+                    .is_some_and(|front| front.processIdentifier() == app.processIdentifier())
+                {
+                    return Ok(());
+                }
+            }
+            if Instant::now() >= deadline {
+                return Err(AppControlError::RevealFailed(
+                    "open completed but target was not frontmost".into(),
+                ));
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
     fn running(id: &str) -> Result<Option<Retained<NSRunningApplication>>, AppControlError> {
         let apps =
             NSRunningApplication::runningApplicationsWithBundleIdentifier(&NSString::from_str(id));
@@ -372,7 +397,25 @@ pub fn toggle(ids: &[String], paths: &[String]) -> Result<(), AppControlError> {
             }
         );
         let target = MacDesktopAppController::resolve(ids, paths)?;
-        AppToggleService::toggle(&MacDesktopAppController, &target)
+        let controller = MacDesktopAppController;
+        let app = MacDesktopAppController::running(&target.bundle_id)?;
+        let frontmost_pid = NSWorkspace::sharedWorkspace()
+            .frontmostApplication()
+            .as_ref()
+            .map(|front| front.processIdentifier());
+        let is_frontmost = app
+            .as_ref()
+            .is_some_and(|app| frontmost_pid == Some(app.processIdentifier()));
+        eprintln!(
+            "toggle_app platform=macos target_pid={:?} frontmost_pid={frontmost_pid:?} is_frontmost={is_frontmost} chosen_operation={}",
+            app.as_ref().map(|app| app.processIdentifier()),
+            if is_frontmost { "Hide" } else { "Open" }
+        );
+        if is_frontmost {
+            controller.conceal(&target)
+        } else {
+            controller.open_and_verify(&target)
+        }
     })
 }
 #[cfg(test)]
