@@ -1,5 +1,14 @@
 # Blink 第一版官方网站
 
+## 2026-09-07：暂时关闭官网 macOS 下载
+
+- 导航、首屏和页尾主 CTA 统一明确标记“下载 Windows 版 / Download for Windows”；中英文同时说明 macOS 暂未开放，不承诺开放日期。
+- 官网只解析 Windows 安装包；macOS 下载解析返回 null。接口异常或 Windows 资产缺失时，保留已发布 v0.1.1 的 Windows EXE 直链，避免全部版本页再次引导到 macOS 下载。
+- Pages Function 的 macos 字段返回 null，并使用新的缓存键隔离旧响应。已存在的浏览器缓存不影响新前端只读取 windows 字段。
+- 未删除 GitHub Release 中已有 macOS 资产，未修改 Runtime；本次关闭范围为官网入口。
+- 验证：website typecheck、build（含 prerender）通过；下载解析检查覆盖 macOS 禁用、Windows 最新链接和缺失资产回退，均通过。
+- 本轮未提交或推送，未执行 Cloudflare 部署；线上尚待发布验证。
+
 ## 2026-09-03：仓库审查与能力表述边界
 
 已搜索 docs/、doc/、knowledge/。现有文档讨论 Runtime 设置、Toggle App 与 Web 协议，没有官网专题，因此创建本文。保留全部既有未提交修改，仅新增 website/ 与本报告。

@@ -4,6 +4,8 @@ export const RELEASE_REPOSITORY = "codeinsightlab/Blink-Releases";
 export const RELEASE_API_URL = "/api/latest-release";
 export const RELEASE_PAGE_URL = `https://github.com/${RELEASE_REPOSITORY}/releases/latest`;
 
+export const WINDOWS_DOWNLOAD_FALLBACK = `https://github.com/${RELEASE_REPOSITORY}/releases/download/v0.1.1/Blink_0.1.1_x64-setup.exe`;
+
 type LatestRelease = {
   macos?: string | null;
   windows?: string | null;
@@ -19,12 +21,12 @@ export function detectPlatform(): SupportedPlatform {
 }
 
 export async function resolveLatestDownload(platform: SupportedPlatform) {
-  if (platform === "other") return RELEASE_PAGE_URL;
+  if (platform !== "windows") return null;
   const response = await fetch(RELEASE_API_URL, {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) throw new Error(`Release lookup failed: ${response.status}`);
   const release = (await response.json()) as LatestRelease;
-  const asset = platform === "macos" ? release.macos : release.windows;
-  return asset || release.releasePage || RELEASE_PAGE_URL;
+  const asset = release.windows;
+  return asset || WINDOWS_DOWNLOAD_FALLBACK;
 }

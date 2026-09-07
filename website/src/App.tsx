@@ -23,7 +23,7 @@ import {
 import { ProductShowcase } from "./ProductShowcase";
 import { KeyboardStory } from "./KeyboardStory";
 import { copy as baseCopy, copyEn, labels as baseLabels, labelsEn, hardwareValues } from "./content";
-import { detectPlatform, resolveLatestDownload, RELEASE_PAGE_URL, type SupportedPlatform } from "./downloads";
+import { resolveLatestDownload, WINDOWS_DOWNLOAD_FALLBACK } from "./downloads";
 const icons: Record<string, typeof Command> = {
   code: Code2,
   terminal: Terminal,
@@ -65,28 +65,19 @@ function initialLanguage(): "zh" | "en" {
   return typeof navigator === "undefined" || navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
 }
 
-function initialPlatform(): SupportedPlatform {
-  if (typeof document !== "undefined") {
-    const bootstrapped = document.documentElement.dataset.platform;
-    if (bootstrapped === "macos" || bootstrapped === "windows" || bootstrapped === "other") return bootstrapped;
-  }
-  return detectPlatform();
-}
-
 export default function App() {
   const [scenario, setScenario] = useState(0);
   const [language, setLanguage] = useState<"zh" | "en">(initialLanguage);
-  const [platform] = useState<SupportedPlatform>(initialPlatform);
-  const [downloadUrl, setDownloadUrl] = useState(RELEASE_PAGE_URL);
+  const [downloadUrl, setDownloadUrl] = useState(WINDOWS_DOWNLOAD_FALLBACK);
   const labels = language === "en" ? { ...baseLabels, ...labelsEn } : baseLabels;
   const copy = language === "en" ? copyEn : baseCopy;
   const active = copy.scenarios[scenario];
 
   useEffect(() => {
-    resolveLatestDownload(platform)
-      .then(setDownloadUrl)
+    resolveLatestDownload("windows")
+      .then((url) => { if (url) setDownloadUrl(url); })
       .catch(() => undefined);
-  }, [platform]);
+  }, []);
 
   const changeLanguage = (next: "zh" | "en") => {
     setLanguage(next);
@@ -147,7 +138,7 @@ export default function App() {
           <p className="availability">
             {labels.macFirst}
             <span>{labels.separator}</span>
-            {platform === "windows" ? (language === "en" ? "Windows x64" : "Windows x64") : platform === "macos" ? labels.downloadReady : (language === "en" ? "All versions" : "全部版本")}
+            {labels.macStatus}
           </p>
           <ProductShowcase language={language} />
           <div className="hero-foot">
@@ -315,7 +306,7 @@ export default function App() {
           <p>{labels.tagline}</p>
           <a className="button primary" href={downloadUrl}>
             <Download size={17} />
-            {platform === "windows" ? (language === "en" ? "Download for Windows" : "下载 Windows 版") : platform === "macos" ? labels.downloadMac : (language === "en" ? "View all downloads" : "查看全部下载")}
+            {labels.download}
           </a>
           <p className="download-note">{labels.downloadNote}</p>
           <div className="platforms">
