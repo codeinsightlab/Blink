@@ -303,8 +303,10 @@ impl DesktopAppController for MacDesktopAppController {
         };
         eprintln!("toggle_app platform=macos pid={} chosen_operation={strategy} hidden_before={hidden_before}", app.processIdentifier());
         let unhide_accepted = !hidden_before || app.unhide();
+        let hidden_after_unhide = app.isHidden();
         let activated = Self::activate_on_main_thread(app.processIdentifier());
-        eprintln!("toggle_app activation_method=NSRunningApplication.activate(main_thread) options=empty unhide_accepted={unhide_accepted} activation_accepted={activated}");
+        eprintln!("toggle_app activation_thread=main_queue is_main_thread=true activation_method=NSRunningApplication.activate options=empty unhide_requested={hidden_before} unhide_accepted={unhide_accepted} hidden_after_unhide={hidden_after_unhide} activation_accepted={activated}");
+        let verification_started = Instant::now();
         let focus_deadline = Instant::now() + Duration::from_millis(700);
         let focused = loop {
             if NSWorkspace::sharedWorkspace()
@@ -319,10 +321,11 @@ impl DesktopAppController for MacDesktopAppController {
             thread::sleep(Duration::from_millis(50));
         };
         eprintln!(
-            "toggle_app frontmost_pid_after={:?} observed_frontmost={focused} bundle_id={}",
+            "toggle_app frontmost_pid_after={:?} observed_frontmost={focused} verification_elapsed_ms={} bundle_id={}",
             NSWorkspace::sharedWorkspace()
                 .frontmostApplication()
                 .map(|front| front.processIdentifier()),
+            verification_started.elapsed().as_millis(),
             target.bundle_id
         );
         if focused {
