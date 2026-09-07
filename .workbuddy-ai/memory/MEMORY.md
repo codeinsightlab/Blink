@@ -21,4 +21,12 @@
 - ❌ 未修复：依赖仍用 "latest"（P0）、文档仍停在 v1.x（P0）、无 ESLint（P1）
 - ⚠️ ExportPage 硬编码 "协议版本": "2.0"（P1）
 - 综合评分从 6.8 → 7.7（架构 9.0，功能 8.5，代码 7.5，安全 8.5，工程 6.0，文档 6.5）
-- V1 适配度结论：可以发布，核心闭环完整，安全防护到位
+
+## 第四轮审查发现（2026-09-07）
+- 综合评分：7.7/10（架构 9.0，功能 8.5，代码 7.5，安全 8.0，工程 6.5，文档 6.5）
+- ✅ 已修复（相对第三轮）：依赖锁定精确版本、ExportPage 动态版本、Prettier 配置、测试增至 3 文件
+- ❌ 三轮未修复 P0：`writeStorage` 不捕获 QuotaExceededError、文档停在 v1.x
+- ❌ 三轮未修复 P1：`refresh_listener().ok()` 静默吞错、符号键映射不完整、ESLint 未配置
+- 🆕 新发现 P0：`tauri.conf.json` CSP 设为 null（安全性下调 0.5）
+- 🆕 新发现 P1：creator.ts End/Home 键映射不完整、appRegistryStore 不安全类型断言、main.ts innerHTML 审计需求
+- 发布建议：修复 4 项 P0（CSP + writeStorage + 符号键 + 文档）后可发布 V1
