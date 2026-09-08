@@ -145,6 +145,11 @@ const key = (code: string, key: string, modifiers = {}) => ({
 const physical = captureCreatorKey({ mode: "physical" }, key("F11", "F11"));
 assert.equal(physical.physicalInput, "F11");
 assert.equal(physical.keys, undefined);
+for (const code of ["F19", "F20", "F21", "F22", "F23", "F24", "Home", "End"]) {
+  const captured = captureCreatorKey({ mode: "physical" }, key(code, code));
+  assert.equal(captured.physicalInput, code.toUpperCase());
+  assert.equal(captured.error, undefined);
+}
 const hotkey = captureCreatorKey(
   { ...physical, mode: "hotkey" },
   key("KeyP", "P", { metaKey: true, shiftKey: true }),
