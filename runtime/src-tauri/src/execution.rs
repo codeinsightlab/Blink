@@ -304,7 +304,7 @@ fn launch_app(
 }
 
 fn send_hotkey(keys: &[String]) -> Result<(), String> {
-    if !automation_permission_granted() {
+    if !crate::accessibility::granted() {
         return Err("缺少 macOS“辅助功能”权限：请授权当前正在运行的 Blink 应用后重试".into());
     }
     use enigo::{Direction, Enigo, Keyboard, Settings};
@@ -325,21 +325,6 @@ fn send_hotkey(keys: &[String]) -> Result<(), String> {
             .map_err(|error| format!("SEND_HOTKEY 释放失败：{error}"))?;
     }
     Ok(())
-}
-
-#[cfg(target_os = "macos")]
-fn automation_permission_granted() -> bool {
-    #[link(name = "ApplicationServices", kind = "framework")]
-    extern "C" {
-        fn AXIsProcessTrusted() -> bool;
-    }
-
-    unsafe { AXIsProcessTrusted() }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn automation_permission_granted() -> bool {
-    true
 }
 
 fn to_key(value: &str) -> Result<enigo::Key, String> {

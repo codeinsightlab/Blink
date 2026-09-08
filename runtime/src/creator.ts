@@ -54,12 +54,15 @@ function eventKeys(event: KeyEvent): string[] | undefined {
     ArrowDown: "DOWN",
     ArrowLeft: "LEFT",
     ArrowRight: "RIGHT",
+    End: "END",
+    Home: "HOME",
   };
   const key = /^Key[A-Z]$/.test(event.code)
     ? event.code.slice(3)
     : /^Digit[0-9]$/.test(event.code)
       ? event.code.slice(5)
-      : (special[event.code] ?? (/^F(?:[1-9]|1[0-2])$/.test(event.code) ? event.code : undefined));
+      : (special[event.code] ??
+        (/^F(?:[1-9]|1[0-9]|2[0-4])$/.test(event.code) ? event.code : undefined));
   if (!key) throw new Error(t("invalidInput"));
   return [
     ...(event.metaKey ? ["META"] : []),

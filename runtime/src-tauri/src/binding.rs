@@ -168,4 +168,29 @@ mod tests {
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2); // no orphan temp files
         std::fs::remove_dir_all(dir).unwrap();
     }
+
+    #[test]
+    fn extended_function_bindings_survive_save_and_reload() {
+        let dir =
+            std::env::temp_dir().join(format!("blink-extended-binding-{}", uuid::Uuid::new_v4()));
+        let file = dir.join("bindings.json");
+        let mut state = BindingState::default();
+        state.bind_profile("system-builtin-copy", "F19");
+        state.bind_profile("system-builtin-paste", "F20");
+        state.save(&file).unwrap();
+
+        let restored = BindingState::load(
+            &file,
+            &["system-builtin-copy".into(), "system-builtin-paste".into()]
+                .into_iter()
+                .collect(),
+        )
+        .unwrap();
+        assert_eq!(restored.profile_to_physical["system-builtin-copy"], "F19");
+        assert_eq!(restored.profile_to_physical["system-builtin-paste"], "F20");
+        assert_eq!(restored.physical_to_profile["F19"], "system-builtin-copy");
+        assert_eq!(restored.physical_to_profile["F20"], "system-builtin-paste");
+        assert!(restored.consistent());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

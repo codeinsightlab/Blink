@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod accessibility;
 mod app_icon;
 mod app_toggle;
 mod backup;
@@ -25,7 +26,7 @@ use std::{
     },
 };
 use tauri::{AppHandle, Emitter, Manager, State};
-use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 struct RuntimeCore {
     repository: ProfileRepository,
@@ -107,6 +108,24 @@ fn refresh_listener(app: &AppHandle) -> Result<(), String> {
             publish_diagnostic(app, "全局快捷键注册失败".into(), Some(e.clone()));
             Err(e)
         }
+    }
+}
+fn request_accessibility_permission(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    if !accessibility::granted() {
+        eprintln!("[ACCESSIBILITY_PERMISSION] granted=false source=runtime");
+        app.dialog()
+            .message("Blink 需要 macOS“辅助功能”权限，才能发送跨应用快捷键和控制其他应用。请在系统设置中勾选当前正在运行的 Blink，然后返回重试。")
+            .title("需要辅助功能权限")
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::OkCancelCustom("打开系统设置".into(), "稍后".into()))
+            .show(|open| {
+                if open {
+                    if let Err(error) = accessibility::open_settings() {
+                        eprintln!("[ACCESSIBILITY_PERMISSION] open_settings_error={error}");
+                    }
+                }
+            });
     }
 }
 fn commit_bindings(app: &AppHandle, next: BindingState) -> Result<(), String> {
@@ -222,6 +241,9 @@ fn dispatch_profile(app: &AppHandle, id: &str) {
         let _guard = ScriptGuard(script);
         for (index, execution) in executions.iter().enumerate() {
             if let Err(error) = execution::dispatch(execution) {
+                if error.contains("辅助功能") || error.contains("PermissionDenied") {
+                    request_accessibility_permission(&handle);
+                }
                 publish_diagnostic(
                     &handle,
                     format!(
@@ -812,6 +834,7 @@ fn main() {
                 binding_file,
             }));
             tray::install(app)?;
+            request_accessibility_permission(app.handle());
             if let Err(error) = refresh_listener(app.handle()) {
                 eprintln!("启动时注册全局快捷键失败: {error}");
             }

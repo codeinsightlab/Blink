@@ -16,7 +16,6 @@ use std::{
 type CF = *const c_void;
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
-    fn AXIsProcessTrusted() -> bool;
     fn AXUIElementCreateApplication(pid: i32) -> CF;
     fn AXUIElementCopyAttributeValue(element: CF, attribute: CF, value: *mut CF) -> i32;
     fn AXUIElementSetAttributeValue(element: CF, attribute: CF, value: CF) -> i32;
@@ -89,7 +88,7 @@ fn copy(element: CF, name: &str) -> Result<Owned, String> {
 }
 // Only window minimization uses AX. Unknown values never become a false/non-minimized value.
 fn windows(pid: i32, restore: bool) -> Result<(usize, usize), String> {
-    if !unsafe { AXIsProcessTrusted() } {
+    if !crate::accessibility::granted() {
         return Err("PermissionDenied".into());
     }
     let app = Owned(unsafe { AXUIElementCreateApplication(pid) });
@@ -390,7 +389,7 @@ pub fn toggle(ids: &[String], paths: &[String]) -> Result<(), AppControlError> {
     autoreleasepool(|_| {
         eprintln!(
             "toggle_app ax_permission={} platform=macos",
-            if unsafe { AXIsProcessTrusted() } {
+            if crate::accessibility::granted() {
                 "granted"
             } else {
                 "denied"
@@ -447,7 +446,7 @@ mod tests {
                 .is_some());
             eprintln!(
                 "NATIVE_FIXTURE launch accepted; AX permission={}; visible_window={}",
-                unsafe { AXIsProcessTrusted() },
+                crate::accessibility::granted(),
                 has_visible_window(
                     MacDesktopAppController::running(&target.bundle_id)
                         .unwrap()
