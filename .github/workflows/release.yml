@@ -106,8 +106,9 @@ jobs:
           import json
           import pathlib
           import re
+          import os
 
-          version = "${VERSION}"
+          version = os.environ["VERSION"]
           cargo = pathlib.Path("runtime/src-tauri/Cargo.toml")
           text = cargo.read_text()
           text, count = re.subn(r'(?m)^(version\s*=\s*)"[^"]+"$', rf'\1"{version}"', text, count=1)
@@ -217,7 +218,7 @@ jobs:
           $version = $env:VERSION
           $cargo = 'runtime/src-tauri/Cargo.toml'
           $cargoText = Get-Content $cargo -Raw
-          $updated = [regex]::Replace($cargoText, '(?m)^version\s*=\s*"[^"]+"$', "version = `"$version`"", 1)
+          $updated = [regex]::Replace($cargoText, '(?m)^version\s*=\s*"[^"]+"\r?$', "version = `"$version`"", 1)
           if ($updated -eq $cargoText) { throw 'Cargo package version was not found.' }
           Set-Content -Path $cargo -Value $updated -NoNewline
           $lock = 'runtime/src-tauri/Cargo.lock'
