@@ -18,7 +18,8 @@ function localizeCategories(apps: AppDefinition[]) {
 }
 function loadApps(): AppDefinition[] {
   const parsed = appDefinitionSchema.array().safeParse(readStorage(STORAGE_KEYS.apps));
-  return localizeCategories(parsed.success ? parsed.data : (initialApps as AppDefinition[]));
+  const initial = appDefinitionSchema.array().safeParse(initialApps);
+  return localizeCategories(parsed.success ? parsed.data : initial.success ? initial.data : []);
 }
 type RegistryState = {
   apps: AppDefinition[];

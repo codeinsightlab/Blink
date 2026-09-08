@@ -12,6 +12,24 @@ export function readStorage(key: string): unknown {
     return null;
   }
 }
+
+export class StorageWriteError extends Error {
+  readonly key: string;
+  readonly cause: unknown;
+
+  constructor(key: string, cause: unknown) {
+    super("无法保存数据，请检查浏览器存储空间或权限后重试");
+    this.name = "StorageWriteError";
+    this.key = key;
+    this.cause = cause;
+  }
+}
+
 export function writeStorage(key: string, value: unknown) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (error) {
+    throw new StorageWriteError(key, error);
+  }
 }

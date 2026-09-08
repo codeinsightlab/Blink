@@ -167,6 +167,11 @@ const invalidAction = captureCreatorKey(
   { ...physical, mode: "hotkey" },
   key("End", "End", { ctrlKey: true, altKey: true }),
 );
+const unsupportedFunctionKey = captureCreatorKey(
+  { mode: "hotkey" },
+  key("F20", "F20", { ctrlKey: true }),
+);
+assert.match(unsupportedFunctionKey.error ?? "", /无效|不支持|Unsupported|invalid/i);
 assert.equal(invalidAction.physicalInput, "F11");
 assert.equal(invalidAction.keys, undefined);
 assert.ok(invalidAction.error);

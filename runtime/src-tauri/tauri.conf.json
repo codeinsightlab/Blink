@@ -22,7 +22,9 @@
         "backgroundColor": "#10121a"
       }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' https://blink.learnaiwithcode.com; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:"
+    }
   },
   "bundle": {
     "active": true,

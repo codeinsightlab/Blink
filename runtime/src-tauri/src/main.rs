@@ -812,7 +812,9 @@ fn main() {
                 binding_file,
             }));
             tray::install(app)?;
-            refresh_listener(app.handle()).ok();
+            if let Err(error) = refresh_listener(app.handle()) {
+                eprintln!("启动时注册全局快捷键失败: {error}");
+            }
             #[cfg(not(debug_assertions))]
             if let Some(window) = app.get_webview_window("main") {
                 window.hide()?;

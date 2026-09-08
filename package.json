@@ -19,6 +19,7 @@
     "test:models": "node --experimental-strip-types tests/model-tests.ts",
     "test:parity": "node --experimental-strip-types tests/profile-parity.ts",
     "test:creator": "node --experimental-strip-types tests/creator-tests.ts",
+    "test:storage": "node --experimental-strip-types tests/storage-service-tests.ts",
     "typecheck": "tsc -p packages/blink-contract/tsconfig.json --pretty false && tsc -b --pretty false"
   },
   "dependencies": {
