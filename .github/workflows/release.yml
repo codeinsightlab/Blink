@@ -162,8 +162,18 @@ jobs:
           set -euo pipefail
           chmod +x runtime/macos/create-dmg.sh
           raw_dmg="$(find runtime/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          test -n "${raw_dmg}"
+          raw_mount="$(mktemp -d)"
+          hdiutil attach "${raw_dmg}" -mountpoint "${raw_mount}" -nobrowse -quiet
+          trap 'hdiutil detach "${raw_mount}" -quiet 2>/dev/null || true; rmdir "${raw_mount}" 2>/dev/null || true' EXIT
+          app_path="$(find "${raw_mount}" -maxdepth 2 -type d -name '*.app' -print -quit)"
+          test -n "${app_path}"
+          app_copy="$(mktemp -d)/Blink.app"
+          cp -R "${app_path}" "${app_copy}"
           custom_dmg="$(mktemp -u "${TMPDIR:-/tmp}/blink-custom.XXXXXX.dmg")"
-          runtime/macos/create-dmg.sh "runtime/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Blink.app" "$custom_dmg" "${VERSION}"
+          hdiutil detach "${raw_mount}" -quiet
+          trap - EXIT
+          runtime/macos/create-dmg.sh "${app_copy}" "$custom_dmg" "${VERSION}"
           mv "$custom_dmg" "$raw_dmg"
 
       - name: Verify DMG and calculate SHA-256
