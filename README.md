@@ -32,7 +32,7 @@
 - 可执行文件防注入（拦截 `.exe` / `.com` / `.bat` / `.sh` / `.ps1` 等）
 - URL 校验（拒绝 `javascript:` 协议）
 - 路径校验（macOS 绝对路径 / Windows 盘符路径）
-- macOS 键盘模拟的辅助功能权限检查
+- macOS 跨应用控制的辅助功能权限检查与系统设置引导
 
 ---
 
@@ -122,6 +122,26 @@ npm install
 cd runtime && npm install && cd ..
 ```
 
+### macOS 安装、权限与升级
+
+> 当前 macOS 版本是 **Apple Silicon 测试构建**，尚未使用 Developer ID 签名和 Apple notarization，不应视为可无感升级的正式发行版。
+
+Blink 的“发送快捷键”和部分应用控制能力需要 macOS 辅助功能权限。首次安装后：
+
+1. 将 `Blink.app` 拖入 `/Applications`，并从该位置启动。
+2. 按应用提示打开“系统设置 → 隐私与安全性 → 辅助功能”。
+3. 添加并开启当前 `/Applications/Blink.app`。
+4. 返回 Blink 后，用目标应用实际验证一次快捷键；列表中显示开启不等于当前进程一定已获授权。
+
+当前测试包采用 ad-hoc 签名。下载新版本并覆盖旧版时，macOS 可能把新版识别为新的代码身份，导致旧的辅助功能授权无法继续使用。若升级后 Blink 提示没有权限：
+
+1. 完全退出 Blink。
+2. 在“辅助功能”列表中删除旧的 Blink 条目。
+3. 重新添加当前 `/Applications/Blink.app` 并开启权限。
+4. 重新启动 Blink，再做一次跨应用快捷键验证。
+
+更换为应用内下载、增量更新或其他本地升级方式不能消除这一限制；只要 Blink 可执行代码改变，ad-hoc 签名身份就可能改变。正式解决方案是后续所有 macOS 版本持续使用同一 Apple Developer 团队的 `Developer ID Application` 身份签名，保持 `com.blink.runtime` 不变，并完成 notarization。首次从当前测试包迁移到正式签名包时，仍可能需要重新授权一次。
+
 ### 开发
 
 ```bash
@@ -181,6 +201,7 @@ Profile 版本在编译时**自动探测**：纯 `OPEN_APP` / `COMMAND` 编译�
 - 配置与密钥一律不写入代码库，`.env` 已加入 `.gitignore`（仅提交 `.env.example`）。
 - Runtime 对脚本、可执行文件、URL、路径均做白名单 / 黑名单校验（见上文「功能特性」）。
 - 脚本执行带 30s 超时与串行防并发，避免长任务阻塞或资源滥用。
+- macOS 辅助功能权限由系统 TCC 管理，Blink 只能检查状态并引导用户授权，不能静默授予、迁移或修复该权限。
 
 ---
 
@@ -191,6 +212,7 @@ Profile 版本在编译时**自动探测**：纯 `OPEN_APP` / `COMMAND` 编译�
 - `docs/web-v1-architecture-and-profile-contract.md` — 架构与 Profile 契约
 - `docs/runtime-settings-ui.md` — Runtime 设置 UI
 - `docs/macos-toggle-app.md` — macOS 切换应用说明
+- `docs/macos-extended-function-key-capture-audit.md` — macOS 按键、辅助功能权限与覆盖升级 RCA
 - `docs/blink-official-website.md` — 官网说明
 
 ---
