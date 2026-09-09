@@ -23,7 +23,7 @@ import {
 import { ProductShowcase } from "./ProductShowcase";
 import { KeyboardStory } from "./KeyboardStory";
 import { copy as baseCopy, copyEn, labels as baseLabels, labelsEn, hardwareValues } from "./content";
-import { resolveLatestDownload, WINDOWS_DOWNLOAD_FALLBACK } from "./downloads";
+import { detectPlatform, resolveLatestDownload, WINDOWS_DOWNLOAD_FALLBACK } from "./downloads";
 const icons: Record<string, typeof Command> = {
   code: Code2,
   terminal: Terminal,
@@ -69,6 +69,8 @@ export default function App() {
   const [scenario, setScenario] = useState(0);
   const [language, setLanguage] = useState<"zh" | "en">(initialLanguage);
   const [downloadUrl, setDownloadUrl] = useState(WINDOWS_DOWNLOAD_FALLBACK);
+  const [macDownloadUrl, setMacDownloadUrl] = useState<string | null>(null);
+  const platform = detectPlatform();
   const labels = language === "en" ? { ...baseLabels, ...labelsEn } : baseLabels;
   const copy = language === "en" ? copyEn : baseCopy;
   const active = copy.scenarios[scenario];
@@ -76,6 +78,9 @@ export default function App() {
   useEffect(() => {
     resolveLatestDownload("windows")
       .then((url) => { if (url) setDownloadUrl(url); })
+      .catch(() => undefined);
+    resolveLatestDownload("macos")
+      .then((url) => { if (url) setMacDownloadUrl(url); })
       .catch(() => undefined);
   }, []);
 
@@ -88,7 +93,9 @@ export default function App() {
     } catch {}
   };
 
-  const primaryCta = { href: downloadUrl, label: labels.download };
+  const primaryCta = platform === "macos" && macDownloadUrl
+    ? { href: macDownloadUrl, label: labels.downloadMac }
+    : { href: downloadUrl, label: labels.download };
   return (
     <>
       <a className="skip" href="#main">
@@ -304,15 +311,21 @@ export default function App() {
             {labels.downloadTitleAccent}
           </h2>
           <p>{labels.tagline}</p>
-          <a className="button primary" href={downloadUrl}>
-            <Download size={17} />
-            {labels.download}
-          </a>
+          <div className="download-actions">
+            <a className="button primary" href={macDownloadUrl || "#download"} aria-disabled={!macDownloadUrl}>
+              <Download size={17} />
+              {labels.downloadMac}
+            </a>
+            <a className="button secondary" href={downloadUrl}>
+              <Download size={17} />
+              {labels.download}
+            </a>
+          </div>
           <p className="download-note">{labels.downloadNote}</p>
           <div className="platforms">
-            <span>
+            <span className={macDownloadUrl ? "platform-ready" : ""}>
               {labels.mac}
-              <b>{labels.macStatus}</b>
+              <b>{labels.macStatus}{macDownloadUrl ? ` · ${labels.macArchitecture}` : ""}</b>
             </span>
             <span>
               {labels.windows}

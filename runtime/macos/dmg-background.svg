@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560">
+  <rect width="900" height="560" rx="28" fill="#10121a"/>
+  <circle cx="450" cy="280" r="180" fill="#75dfc5" opacity=".08"/>
+  <path d="M210 280h120m240 0h120" stroke="#75dfc5" stroke-width="3" opacity=".7"/>
+  <path d="m430 258 24 22-24 22m40-44 24 22-24 22" fill="none" stroke="#b7f5f5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="450" y="110" text-anchor="middle" fill="#b7f5f5" font-family="-apple-system,Helvetica,sans-serif" font-size="30" font-weight="600">PRESS → ACTION</text>
+  <text x="450" y="475" text-anchor="middle" fill="#91a7b5" font-family="-apple-system,Helvetica,sans-serif" font-size="18">Drag Blink to Applications to get started</text>
+</svg>

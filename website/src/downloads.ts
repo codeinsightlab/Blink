@@ -21,12 +21,12 @@ export function detectPlatform(): SupportedPlatform {
 }
 
 export async function resolveLatestDownload(platform: SupportedPlatform) {
-  if (platform !== "windows") return null;
+  if (platform !== "windows" && platform !== "macos") return null;
   const response = await fetch(RELEASE_API_URL, {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) throw new Error(`Release lookup failed: ${response.status}`);
   const release = (await response.json()) as LatestRelease;
-  const asset = release.windows;
-  return asset || WINDOWS_DOWNLOAD_FALLBACK;
+  const asset = platform === "macos" ? release.macos : release.windows;
+  return asset || (platform === "windows" ? WINDOWS_DOWNLOAD_FALLBACK : null);
 }

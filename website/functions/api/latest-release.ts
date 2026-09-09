@@ -38,7 +38,7 @@ function assetUrl(assets: ReleaseAsset[], pattern: RegExp) {
 
 export const onRequestGet: PagesFunction<Env> = async ({ request }) => {
   const cache = caches.default;
-  const cacheKey = new Request(new URL("/api/latest-release?availability=windows-only", request.url).toString(), request);
+  const cacheKey = new Request(new URL("/api/latest-release?availability=all", request.url).toString(), request);
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
 
@@ -60,7 +60,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request }) => {
     const assets = Array.isArray(release.assets) ? release.assets.filter(isAsset) : [];
     const payload = {
       tag: typeof release.tag_name === "string" ? release.tag_name : null,
-      macos: null,
+      macos: assetUrl(assets, /\.dmg$/i),
       windows: assetUrl(assets, /_x64-setup\.exe$/i),
       releasePage: typeof release.html_url === "string" ? release.html_url : RELEASE_PAGE_URL,
     };

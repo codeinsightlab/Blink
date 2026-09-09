@@ -156,6 +156,16 @@ jobs:
         working-directory: runtime
         run: npm run tauri -- build --target aarch64-apple-darwin --bundles dmg
 
+      - name: Apply Blink DMG installer experience
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x runtime/macos/create-dmg.sh
+          raw_dmg="$(find runtime/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          custom_dmg="$(mktemp -u "${TMPDIR:-/tmp}/blink-custom.XXXXXX.dmg")"
+          runtime/macos/create-dmg.sh "runtime/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Blink.app" "$custom_dmg" "${VERSION}"
+          mv "$custom_dmg" "$raw_dmg"
+
       - name: Verify DMG and calculate SHA-256
         shell: bash
         run: |
