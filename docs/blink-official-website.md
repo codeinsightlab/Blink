@@ -462,3 +462,12 @@ npm --prefix website run preview
 ## 发布边界
 
 本次只修改本地网站、Release preflight 与项目约束；没有创建或推送 tag，没有触发 GitHub Release，也没有执行 Cloudflare Pages 部署。线上是否更新仍必须以 Cloudflare Production deployment URL 与真实页面验证为准。
+
+## 2026-09-10 Production Deployment
+
+- Changelog/SEO/发布门禁提交 `fda802f95d1eba76b1717425265ba61c0186bf95` 已推送至 `main`。Cloudflare Pages Git integration 对应 Production deployment 状态为 `success`，北京时间 2026-09-10 11:08 完成，deployment URL 为 `https://f52ee500.blink-4zm.pages.dev`，自定义域 `https://blink.learnaiwithcode.com/` 已切换到该产物。
+- 线上首页、`/changelog`、`/changelog#v0-1-10`、`/sitemap.xml`、`/robots.txt` 均为 HTTP 200；浏览器确认首页导航与 Footer 入口、双平台 v0.1.10 下载、中英文切换及版本锚点正常。
+- `/changelog` 与 `/changelog/` 均返回 200，且 canonical 统一为 `https://blink.learnaiwithcode.com/changelog`；`/changelog.html` 返回 308 并跳转至 `/changelog`，当前无需 duplicate route follow-up。
+- sitemap 使用 HTTPS 正式域名，Changelog `lastmod` 为 `2026-09-09`。robots 的通用规则允许 `/`，Cloudflare Managed Content 仅限制部分 AI crawler；页面无 `noindex`/`nofollow`，响应无 `X-Robots-Tag: noindex`。
+- GitHub Website build run `34432136410` 因账户账单或 spending limit 在 runner 启动前失败；Cloudflare 自身构建日志确认 Node 22 构建、上传与 Production 部署成功。该 GitHub Actions 账户问题不改变本次 Cloudflare 上线结果，但应单独修复 CI 可用性。
+- 未创建 Runtime tag、GitHub Release 或桌面安装包；未提交 Google Search Console，也不声称搜索引擎已收录。
