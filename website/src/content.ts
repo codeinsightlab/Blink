@@ -1,5 +1,5 @@
 export const DOWNLOAD_URL_PLACEHOLDER = "#download";
-export const SITE_URL = ""; // Set to the verified Sites URL before release.
+export const SITE_URL = "https://blink.learnaiwithcode.com";
 export const copy = {
   title: "Blink - 把任意按键变成快捷动作",
   description:

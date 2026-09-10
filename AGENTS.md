@@ -689,3 +689,21 @@ Blink 是：
 - Website 改动至少运行 `cd website && npm run typecheck` 与 `cd website && npm run build`。
 - Cloudflare 配置变更不能通过提交假代码或空提交伪造验证；应使用真实 Website 变更或 Cloudflare 控制台 Retry，并记录 deployment URL 和状态。
 - 不得把 GitHub Actions 成功、Cloudflare 提交记录存在或本地构建成功，误写成 Cloudflare 线上部署成功。
+
+## Release Changelog Rule
+
+Every public release tag MUST have a corresponding website changelog entry.
+
+Before creating or pushing a release tag:
+
+1. Determine the previous public release tag.
+2. Review local development logs, commits, and release-related changes since the previous version.
+3. Summarize only user-visible changes.
+4. Add the new release entry to `website/src/changelog.json`.
+5. Include the version number and release date.
+6. Group changes using Added / Improved / Fixed / Known Issues when applicable; omit empty groups.
+7. Run `cd website && npm run verify:changelog -- vX.Y.Z`.
+8. Run `cd website && npm run typecheck` and `cd website && npm run build`, and verify changelog SEO metadata and sitemap output remain valid.
+9. Commit the changelog update before creating or pushing the release tag.
+
+Do not publish a release tag whose changelog entry is missing. The local development log is an implementation record, not public release notes. Translate internal debugging details, refactors, and implementation-only changes into concise user-facing release notes or omit them.

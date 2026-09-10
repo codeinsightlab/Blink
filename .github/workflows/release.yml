@@ -58,6 +58,9 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "Resolved VERSION=${version}"
 
+      - name: Require matching website changelog entry
+        run: node website/scripts/verify-changelog-version.mjs "${RELEASE_TAG}"
+
       - name: Require cross-repository release token
         env:
           RELEASE_TOKEN: ${{ secrets.BLINK_RELEASE_TOKEN }}

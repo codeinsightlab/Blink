@@ -445,3 +445,20 @@ npm --prefix website run preview
 - `cd website && npm run build`：通过。
 - 产物包含 bootstrap，且 latest-release Function 未修改。
 - 中文/英文、macOS/Windows、无 localStorage/已有 localStorage 的真实浏览器首帧 filmstrip 尚未在本地工具中完成；需 Cloudflare Production 部署后匿名浏览器复核。
+# 2026-09-10 Changelog 与发布门禁
+
+## 新增章节
+
+- 官网新增可静态抓取的 `/changelog` 页面，版本数据集中维护于 `website/src/changelog.json`，覆盖现有 `v0.1.0` 至 `v0.1.10` 正式 tag。
+- 历史内容依据 tag 日期、tag 间提交与已有发布审查转换为用户视角；证据不足的 `v0.1.5`、`v0.1.6` 明确保守标为维护版本，没有虚构修复项。
+- Changelog 具备独立 title、description、canonical、Open Graph、Twitter metadata、语义化 H1/H2/H3、版本 anchor，并写入 sitemap；`lastmod` 使用最新 release 日期而非构建时间。
+- `website/scripts/verify-changelog-version.mjs` 校验指定 tag 恰有一条带日期及中英文摘要的记录；Release workflow preflight 在构建安装包前执行该门禁。
+- `AGENTS.md` 新增 Release Changelog Rule，要求 changelog 提交先于 tag 创建或推送。
+
+## 多语言 SEO 状态
+
+当前官网延续单 URL 客户端中英文切换，Changelog 不强行引入新路由体系。预渲染正文以站点默认语言输出，浏览器可切换完整中英文内容；当前没有 `/zh/`、`/en/` 或 `hreflang`。若未来建立稳定的 locale URL，再统一为各语言生成 canonical 与 hreflang，避免只为单页形成不一致的路由模型。
+
+## 发布边界
+
+本次只修改本地网站、Release preflight 与项目约束；没有创建或推送 tag，没有触发 GitHub Release，也没有执行 Cloudflare Pages 部署。线上是否更新仍必须以 Cloudflare Production deployment URL 与真实页面验证为准。

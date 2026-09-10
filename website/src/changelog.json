@@ -1,0 +1,103 @@
+[
+  {
+    "version": "0.1.10",
+    "releaseDate": "2026-09-09",
+    "summary": { "zh": "改进 macOS 安装镜像的生成可靠性，并保持 Windows 安装包同步发布。", "en": "Improved the reliability of macOS installer image generation while keeping Windows installers available in the same release." },
+    "fixed": [
+      { "zh": "修复自定义 macOS DMG 在打包过程中可能因临时文件位置而失败的问题。", "en": "Fixed a custom macOS DMG packaging failure caused by where temporary output was created." }
+    ],
+    "knownIssues": [
+      { "zh": "macOS 版本目前仅提供 Apple Silicon 测试构建，首次启动可能需要按 DMG 内说明解除 quarantine。", "en": "The macOS build is currently an Apple Silicon test build and may require the quarantine workaround documented in the DMG." }
+    ]
+  },
+  {
+    "version": "0.1.9",
+    "releaseDate": "2026-09-09",
+    "summary": { "zh": "修复 macOS 发布流程定位应用包的问题。", "en": "Fixed app discovery in the macOS release packaging flow." },
+    "fixed": [
+      { "zh": "提高从生成的安装镜像中识别 Blink.app 的可靠性。", "en": "Made locating Blink.app inside the generated installer image more reliable." }
+    ]
+  },
+  {
+    "version": "0.1.8",
+    "releaseDate": "2026-09-09",
+    "summary": { "zh": "改善 macOS 下载后的安装体验，并加强正式发布路径。", "en": "Improved the macOS post-download installation experience and hardened the public release path." },
+    "improved": [
+      { "zh": "macOS 安装镜像加入更清晰的拖拽安装与首次启动说明。", "en": "Added clearer drag-to-install and first-launch guidance to the macOS installer image." },
+      { "zh": "官网可根据公开 Release 提供 macOS Apple Silicon 与 Windows x64 下载。", "en": "The website can offer macOS Apple Silicon and Windows x64 downloads from the public release." }
+    ],
+    "knownIssues": [
+      { "zh": "macOS 构建尚未完成 Apple 公证。", "en": "The macOS build is not yet notarized by Apple." }
+    ]
+  },
+  {
+    "version": "0.1.7",
+    "releaseDate": "2026-09-08",
+    "summary": { "zh": "发布维护版本，并为官网提供按平台汇总的公开下载统计。", "en": "Shipped a maintenance release and added platform-level public download totals to the website." },
+    "added": [
+      { "zh": "官网可汇总正式版本的 macOS 与 Windows 安装包下载次数。", "en": "The website can aggregate installer download counts across public macOS and Windows releases." }
+    ]
+  },
+  {
+    "version": "0.1.6",
+    "releaseDate": "2026-09-08",
+    "summary": { "zh": "维护版本；现有记录不足以确认独立的用户可感知变化。", "en": "Maintenance release; the available records do not establish a distinct user-visible change." }
+  },
+  {
+    "version": "0.1.5",
+    "releaseDate": "2026-09-08",
+    "summary": { "zh": "维护版本；与 v0.1.6 基于同一源码提交，未记录独立的用户可感知变化。", "en": "Maintenance release from the same source commit as v0.1.6, with no separately recorded user-visible change." }
+  },
+  {
+    "version": "0.1.4",
+    "releaseDate": "2026-09-08",
+    "summary": { "zh": "改进 macOS 应用切换与快捷键执行可靠性，并让安装包版本与发布 tag 保持一致。", "en": "Improved macOS app switching and shortcut execution reliability, with installer versions derived from the release tag." },
+    "improved": [
+      { "zh": "增强 macOS 上呼出后台应用及执行系统快捷键时的可靠性。", "en": "Improved reliability when bringing background apps forward and running system shortcuts on macOS." },
+      { "zh": "正式安装包版本现在由发布 tag 驱动，减少版本号不一致。", "en": "Release tags now drive installer versions, reducing version mismatches." }
+    ]
+  },
+  {
+    "version": "0.1.3",
+    "releaseDate": "2026-09-07",
+    "summary": { "zh": "提供面向 macOS 与 Windows 的正式安装包，并改善官网的下载体验。", "en": "Delivered macOS and Windows installers and improved the website download experience." },
+    "improved": [
+      { "zh": "官网可按访问平台显示对应下载入口，并支持中英文内容。", "en": "The website can present the appropriate platform download with Chinese and English copy." }
+    ],
+    "fixed": [
+      { "zh": "修复 Windows 正式版启动时出现额外控制台窗口的问题。", "en": "Fixed an extra console window appearing when launching Windows release builds." },
+      { "zh": "修复官网首次加载时可能出现的语言闪烁。", "en": "Fixed a language flash during the website's first paint." }
+    ]
+  },
+  {
+    "version": "0.1.2",
+    "releaseDate": "2026-09-07",
+    "summary": { "zh": "与 v0.1.3 基于同一源码提交发布，包含相同的跨平台安装包与体验修复。", "en": "Released from the same source commit as v0.1.3, with the same cross-platform installers and experience fixes." },
+    "improved": [
+      { "zh": "官网增加中英文、按平台识别的下载入口。", "en": "Added localized, platform-aware downloads to the website." }
+    ],
+    "fixed": [
+      { "zh": "Windows 正式版不再显示额外控制台窗口。", "en": "Windows release builds no longer show an extra console window." },
+      { "zh": "减少官网初次加载时的语言切换闪烁。", "en": "Reduced language switching flash during initial website load." }
+    ]
+  },
+  {
+    "version": "0.1.1",
+    "releaseDate": "2026-09-05",
+    "summary": { "zh": "首个公开维护版本，重点提高 Runtime 与发布构建的可靠性。", "en": "The first public maintenance release, focused on Runtime and release-build reliability." },
+    "improved": [
+      { "zh": "增强本地配置持久化、备份、诊断和脚本进程处理。", "en": "Improved local configuration persistence, backups, diagnostics, and script process handling." },
+      { "zh": "增加双平台正式构建验证，降低发布损坏安装包的风险。", "en": "Added production build verification on both platforms to reduce the risk of broken installers." }
+    ]
+  },
+  {
+    "version": "0.1.0",
+    "releaseDate": "2026-09-04",
+    "summary": { "zh": "Blink 首个正式版本：把应用、网页、脚本和快捷键动作绑定到实体按键。", "en": "Blink's first formal release: bind apps, URLs, scripts, and keyboard shortcuts to physical keys." },
+    "added": [
+      { "zh": "创建、导入和管理本地快捷命令。", "en": "Create, import, and manage local shortcut commands." },
+      { "zh": "将可识别的实体按键绑定到打开 App、URL、脚本或系统快捷键。", "en": "Bind recognizable physical keys to apps, URLs, scripts, or system shortcuts." },
+      { "zh": "提供 macOS Apple Silicon 与 Windows x64 安装包。", "en": "Provided installers for macOS Apple Silicon and Windows x64." }
+    ]
+  }
+]

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { ProductShowcase } from "./ProductShowcase";
 import { KeyboardStory } from "./KeyboardStory";
+import { Changelog, changelogMeta } from "./Changelog";
 import { copy as baseCopy, copyEn, labels as baseLabels, labelsEn, hardwareValues } from "./content";
 import { detectPlatform, resolveLatestDownload, WINDOWS_DOWNLOAD_FALLBACK } from "./downloads";
 const icons: Record<string, typeof Command> = {
@@ -65,7 +66,7 @@ function initialLanguage(): "zh" | "en" {
   return typeof navigator === "undefined" || navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
 }
 
-export default function App() {
+export default function App({ route }: { route?: string } = {}) {
   const [scenario, setScenario] = useState(0);
   const [language, setLanguage] = useState<"zh" | "en">(initialLanguage);
   const [downloadUrl, setDownloadUrl] = useState(WINDOWS_DOWNLOAD_FALLBACK);
@@ -74,6 +75,8 @@ export default function App() {
   const labels = language === "en" ? { ...baseLabels, ...labelsEn } : baseLabels;
   const copy = language === "en" ? copyEn : baseCopy;
   const active = copy.scenarios[scenario];
+  const currentRoute = route ?? (typeof window !== "undefined" ? window.location.pathname : "/");
+  const isChangelog = currentRoute.replace(/\/+$/, "") === "/changelog";
 
   useEffect(() => {
     resolveLatestDownload("windows")
@@ -83,6 +86,12 @@ export default function App() {
       .then((url) => { if (url) setMacDownloadUrl(url); })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!isChangelog) return;
+    document.title = changelogMeta.title;
+    document.querySelector('meta[name="description"]')?.setAttribute("content", changelogMeta.description);
+  }, [isChangelog]);
 
   const changeLanguage = (next: "zh" | "en") => {
     setLanguage(next);
@@ -96,6 +105,7 @@ export default function App() {
   const primaryCta = platform === "macos" && macDownloadUrl
     ? { href: macDownloadUrl, label: labels.downloadMac }
     : { href: downloadUrl, label: labels.download };
+  if (isChangelog) return <Changelog language={language} onLanguageChange={changeLanguage} />;
   return (
     <>
       <a className="skip" href="#main">
@@ -111,6 +121,7 @@ export default function App() {
             <a href="#features">{labels.navFeatures}</a>
             <a href="#scenarios">{labels.navScenarios}</a>
             <a href="#how">{labels.navHow}</a>
+            <a href="/changelog">Changelog</a>
           </div>
           <a className="nav-cta" href={primaryCta.href}>
             {primaryCta.label}
@@ -345,6 +356,7 @@ export default function App() {
               <h4>{labels.product}</h4>
               <a href="#features">{labels.navFeatures}</a>
               <a href="#download">{labels.footerDownload}</a>
+              <a href="/changelog">Changelog</a>
             </div>
             <div>
               <h4>{labels.support}</h4>
