@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.1.11",
+    "releaseDate": "2026-09-10",
+    "summary": { "zh": "改善 macOS 安装体验，并上线可持续维护的正式更新日志。", "en": "Improved the macOS installation experience and launched a maintainable public changelog." },
+    "added": [
+      { "zh": "官网新增正式更新日志，可按版本查看 Blink 的新增、改进、修复与已知问题。", "en": "Added a public website changelog with versioned features, improvements, fixes, and known issues." }
+    ],
+    "improved": [
+      { "zh": "修正 macOS DMG 的背景与窗口布局，使拖拽安装入口和说明更清晰。", "en": "Refined the macOS DMG background and window layout for clearer drag-to-install guidance." },
+      { "zh": "官网现在按明确的安装包命名与架构选择 macOS Apple Silicon 和 Windows x64 下载，避免误选辅助或其他架构文件。", "en": "The website now selects macOS Apple Silicon and Windows x64 installers by explicit naming and architecture, avoiding auxiliary or mismatched assets." }
+    ],
+    "knownIssues": [
+      { "zh": "macOS 版本目前仍为 Apple Silicon 测试构建，尚未完成 Developer ID 签名与 Apple 公证。", "en": "The macOS release remains an Apple Silicon test build without Developer ID signing or Apple notarization." }
+    ]
+  },
+  {
     "version": "0.1.10",
     "releaseDate": "2026-09-09",
     "summary": { "zh": "改进 macOS 安装镜像的生成可靠性，并保持 Windows 安装包同步发布。", "en": "Improved the reliability of macOS installer image generation while keeping Windows installers available in the same release." },
