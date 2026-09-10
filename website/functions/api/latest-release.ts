@@ -1,14 +1,11 @@
+import { selectReleaseAssets, type ReleaseAsset } from "./latest-release-logic";
+
 type Env = Record<string, never>;
 
 type GitHubRelease = {
   tag_name?: unknown;
   html_url?: unknown;
   assets?: unknown;
-};
-
-type ReleaseAsset = {
-  name: string;
-  browser_download_url: string;
 };
 
 const GITHUB_RELEASE_URL = "https://api.github.com/repos/codeinsightlab/Blink-Releases/releases/latest";
@@ -30,10 +27,6 @@ function isAsset(value: unknown): value is ReleaseAsset {
   if (!value || typeof value !== "object") return false;
   const asset = value as Record<string, unknown>;
   return typeof asset.name === "string" && typeof asset.browser_download_url === "string";
-}
-
-function assetUrl(assets: ReleaseAsset[], pattern: RegExp) {
-  return assets.find(({ name }) => pattern.test(name))?.browser_download_url ?? null;
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ request }) => {
@@ -58,10 +51,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request }) => {
 
     const release = (await response.json()) as GitHubRelease;
     const assets = Array.isArray(release.assets) ? release.assets.filter(isAsset) : [];
+    const installers = selectReleaseAssets(assets);
     const payload = {
       tag: typeof release.tag_name === "string" ? release.tag_name : null,
-      macos: assetUrl(assets, /\.dmg$/i),
-      windows: assetUrl(assets, /_x64-setup\.exe$/i),
+      macos: installers.macosArm64,
+      windows: installers.windowsX64,
       releasePage: typeof release.html_url === "string" ? release.html_url : RELEASE_PAGE_URL,
     };
     const result = json(payload);
