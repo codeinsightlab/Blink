@@ -471,3 +471,10 @@ npm --prefix website run preview
 - sitemap 使用 HTTPS 正式域名，Changelog `lastmod` 为 `2026-09-09`。robots 的通用规则允许 `/`，Cloudflare Managed Content 仅限制部分 AI crawler；页面无 `noindex`/`nofollow`，响应无 `X-Robots-Tag: noindex`。
 - GitHub Website build run `34432136410` 因账户账单或 spending limit 在 runner 启动前失败；Cloudflare 自身构建日志确认 Node 22 构建、上传与 Production 部署成功。该 GitHub Actions 账户问题不改变本次 Cloudflare 上线结果，但应单独修复 CI 可用性。
 - 未创建 Runtime tag、GitHub Release 或桌面安装包；未提交 Google Search Console，也不声称搜索引擎已收录。
+
+## 2026-09-10 v0.1.11 Changelog 与发布状态
+
+- `website/src/changelog.json` 已新增 `v0.1.11`，只记录 `v0.1.10` 之后可证实的用户变化：macOS DMG 布局修正、官网安装包架构选择改进和正式 Changelog 上线；保留 macOS 尚未 Developer ID 签名/公证的已知问题。
+- Changelog 提交 `f9da4a2b58b6c48ea43858b87199733fa5e883b9` 已推送至 `main`；annotated tag `v0.1.11` 指向同一提交并已推送。本地 Changelog gate、Website typecheck、release asset selection test、build 与生成产物检查均通过。
+- Cloudflare Production 的 `/changelog` 已显示 `Blink v0.1.11`，sitemap `lastmod` 为 `2026-09-10`。Release run `34439630093` 则因 GitHub Actions 账户付款/spending limit 在 runner 启动前失败，后续 verify、双平台构建与 publish 全部 skipped。
+- `Blink-Releases` 中 `v0.1.11` 仍为 HTTP 404，没有新 DMG、EXE、MSI 或 checksums。当前状态为 `TAG_AND_CHANGELOG_PUBLISHED / DESKTOP_RELEASE_BLOCKED`。修复 GitHub Actions billing/spending limit 后，应重跑原 release run 或对既有 `v0.1.11` tag 执行 workflow_dispatch；不要创建替代 tag，也不要移动已发布 tag。
