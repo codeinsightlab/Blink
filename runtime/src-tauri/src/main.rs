@@ -13,6 +13,7 @@ mod repository;
 mod script_process;
 mod tray;
 mod window;
+mod workspace;
 use binding::BindingState;
 use profile::Profile;
 use repository::ProfileRepository;
@@ -39,6 +40,13 @@ struct RuntimeCore {
     binding_file: PathBuf,
 }
 type SharedRuntime = Mutex<RuntimeCore>;
+struct WorkspaceCore {
+    repository: workspace::WorkspaceRepository,
+    repository_file: PathBuf,
+    load_error: Option<String>,
+    last_run: Option<workspace::WorkspaceRun>,
+}
+type SharedWorkspaces = Mutex<WorkspaceCore>;
 pub(crate) struct AppLifecycle(pub AtomicBool);
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -391,6 +399,72 @@ fn runtime_snapshot(core: State<SharedRuntime>) -> RuntimeSnapshot {
         last_error: core.last_error.clone(),
         last_event: core.last_event.clone(),
     }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceSnapshot {
+    workspaces: Vec<workspace::Workspace>,
+    load_error: Option<String>,
+    last_run: Option<workspace::WorkspaceRun>,
+}
+
+#[tauri::command]
+fn workspace_snapshot(core: State<SharedWorkspaces>) -> WorkspaceSnapshot {
+    let core = core.lock().expect("workspace lock");
+    WorkspaceSnapshot {
+        workspaces: core.repository.workspaces.clone(),
+        load_error: core.load_error.clone(),
+        last_run: core.last_run.clone(),
+    }
+}
+
+#[tauri::command]
+fn save_workspace(core: State<SharedWorkspaces>, item: workspace::Workspace) -> Result<(), String> {
+    let mut core = core.lock().expect("workspace lock");
+    let mut candidate = core.repository.clone();
+    candidate.upsert(item)?;
+    candidate.save(&core.repository_file)?;
+    core.repository = candidate;
+    core.load_error = None;
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_workspace(core: State<SharedWorkspaces>, workspace_id: String) -> Result<(), String> {
+    let mut core = core.lock().expect("workspace lock");
+    let mut candidate = core.repository.clone();
+    candidate.delete(&workspace_id)?;
+    candidate.save(&core.repository_file)?;
+    core.repository = candidate;
+    Ok(())
+}
+
+#[tauri::command]
+async fn run_workspace(
+    app: AppHandle,
+    workspace_id: String,
+) -> Result<workspace::WorkspaceRun, String> {
+    let item = {
+        let state = app.state::<SharedWorkspaces>();
+        let item = state
+            .lock()
+            .expect("workspace lock")
+            .repository
+            .workspaces
+            .iter()
+            .find(|item| item.id == workspace_id)
+            .cloned()
+            .ok_or("Workspace 不存在")?;
+        item
+    };
+    let platform = current_platform().to_owned();
+    let run = tauri::async_runtime::spawn_blocking(move || workspace::execute(&item, &platform))
+        .await
+        .map_err(|error| error.to_string())?;
+    let state = app.state::<SharedWorkspaces>();
+    state.lock().expect("workspace lock").last_run = Some(run.clone());
+    Ok(run)
 }
 #[tauri::command]
 fn toggle_listener_command(app: AppHandle) -> Result<(), String> {
@@ -833,6 +907,20 @@ fn main() {
                 repository_file: repo_file,
                 binding_file,
             }));
+            let workspace_file = dir.join("workspaces.json");
+            let (workspaces, workspace_error) = match workspace::WorkspaceRepository::load(&workspace_file) {
+                Ok(repository) => (repository, None),
+                Err(error) => {
+                    eprintln!("Workspace 配置恢复失败（V1 继续启动）: {error}");
+                    (workspace::WorkspaceRepository::default(), Some(error))
+                }
+            };
+            app.manage(Mutex::new(WorkspaceCore {
+                repository: workspaces,
+                repository_file: workspace_file,
+                load_error: workspace_error,
+                last_run: None,
+            }));
             tray::install(app)?;
             request_accessibility_permission(app.handle());
             if let Err(error) = refresh_listener(app.handle()) {
@@ -848,6 +936,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             tray::set_ui_language,
             runtime_snapshot,
+            workspace_snapshot,
+            save_workspace,
+            delete_workspace,
+            run_workspace,
             toggle_listener_command,
             quit_blink_command,
             begin_binding_capture,

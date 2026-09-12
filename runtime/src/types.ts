@@ -3,6 +3,45 @@ export type ListenerStatus = "LISTENING" | "PAUSED" | "ERROR";
 
 export type ProfileSource = "SYSTEM" | "EXTERNAL";
 export type RuntimePlatform = "macos" | "windows";
+
+import type { Action } from "@blink/contract";
+
+export interface WorkspaceItem {
+  id: string;
+  action: Action;
+  enabled: boolean;
+  order: number;
+}
+export interface Workspace {
+  id: string;
+  name: string;
+  items: WorkspaceItem[];
+}
+export type WorkspaceItemOutcome =
+  | "LAUNCHED"
+  | "ALREADY_RUNNING"
+  | "OPEN_REQUEST_ACCEPTED"
+  | "STARTED"
+  | "FAILED";
+export interface WorkspaceItemResult {
+  itemId: string;
+  actionType: string;
+  outcome: WorkspaceItemOutcome;
+  error?: string;
+}
+export interface WorkspaceRun {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  startedAt: number;
+  results: WorkspaceItemResult[];
+  status: "COMPLETE" | "PARTIAL" | "FAILED";
+}
+export interface WorkspaceSnapshot {
+  workspaces: Workspace[];
+  loadError?: string;
+  lastRun?: WorkspaceRun;
+}
 export interface RuntimeProfile {
   id: string;
   name: string;

@@ -1,31 +1,60 @@
 use crate::profile::Execution;
 use std::process::Command;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExecutionIntent {
+    Direct,
+    PrepareEnvironment,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DispatchOutcome {
+    Completed,
+    Launched,
+    AlreadyRunning,
+    OpenRequestAccepted,
+    Started,
+}
+
 pub fn dispatch(execution: &Execution) -> Result<(), String> {
+    dispatch_with_intent(execution, ExecutionIntent::Direct).map(|_| ())
+}
+
+pub fn dispatch_with_intent(
+    execution: &Execution,
+    intent: ExecutionIntent,
+) -> Result<DispatchOutcome, String> {
     match execution {
         Execution::ToggleApp {
             bundle_ids,
             known_paths,
-        } => crate::app_toggle::dispatch(bundle_ids, known_paths),
+        } => {
+            crate::app_toggle::dispatch(bundle_ids, known_paths).map(|_| DispatchOutcome::Completed)
+        }
         Execution::LaunchApp {
             executable_names,
             bundle_ids,
             app_names,
             known_paths,
             aliases,
-        } => launch_app(
-            executable_names,
-            bundle_ids,
-            app_names,
-            known_paths,
-            aliases,
-        ),
-        Execution::SendHotkey { keys } => send_hotkey(keys),
+        } => {
+            let running = app_is_running(executable_names, bundle_ids, known_paths);
+            resolve_open_app(intent, running, || {
+                launch_app(
+                    executable_names,
+                    bundle_ids,
+                    app_names,
+                    known_paths,
+                    aliases,
+                )
+            })
+        }
+        Execution::SendHotkey { keys } => send_hotkey(keys).map(|_| DispatchOutcome::Completed),
         Execution::OpenUrl { url } => {
             if !crate::profile::valid_http_url(url) {
                 return Err("INVALID_URL".into());
             }
-            open_target(url)
+            open_target(url).map(|_| DispatchOutcome::OpenRequestAccepted)
         }
         Execution::OpenFile { path } => {
             if !std::path::Path::new(path).is_file() {
@@ -35,16 +64,86 @@ pub fn dispatch(execution: &Execution) -> Result<(), String> {
             if executable_file(path) {
                 return Err("请选择普通文档；脚本请使用运行脚本".into());
             }
-            open_target(path)
+            open_target(path).map(|_| DispatchOutcome::OpenRequestAccepted)
         }
         Execution::OpenFolder { path } => {
             if !std::path::Path::new(path).is_dir() {
                 return Err("FOLDER_NOT_FOUND".into());
             }
-            open_target(path)
+            open_target(path).map(|_| DispatchOutcome::OpenRequestAccepted)
         }
-        Execution::RunScript { path } => run_script(path),
+        Execution::RunScript { path } if intent == ExecutionIntent::PrepareEnvironment => {
+            start_script(path).map(|_| DispatchOutcome::Started)
+        }
+        Execution::RunScript { path } => run_script(path).map(|_| DispatchOutcome::Completed),
     }
+}
+
+fn resolve_open_app<F>(
+    intent: ExecutionIntent,
+    running: bool,
+    launch: F,
+) -> Result<DispatchOutcome, String>
+where
+    F: FnOnce() -> Result<(), String>,
+{
+    if intent == ExecutionIntent::PrepareEnvironment && running {
+        Ok(DispatchOutcome::AlreadyRunning)
+    } else {
+        launch().map(|_| DispatchOutcome::Launched)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn app_is_running(_: &[String], bundle_ids: &[String], known_paths: &[String]) -> bool {
+    use objc2_app_kit::NSRunningApplication;
+    use objc2_foundation::{NSBundle, NSString};
+    bundle_ids.iter().any(|bundle_id| {
+        NSRunningApplication::runningApplicationsWithBundleIdentifier(&NSString::from_str(
+            bundle_id,
+        ))
+        .firstObject()
+        .is_some()
+    }) || known_paths.iter().any(|path| {
+        NSBundle::bundleWithPath(&NSString::from_str(path))
+            .and_then(|bundle| bundle.bundleIdentifier())
+            .is_some_and(|bundle_id| {
+                NSRunningApplication::runningApplicationsWithBundleIdentifier(&bundle_id)
+                    .firstObject()
+                    .is_some()
+            })
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn app_is_running(executable_names: &[String], _: &[String], known_paths: &[String]) -> bool {
+    let candidates: Vec<_> = executable_names
+        .iter()
+        .map(|name| name.to_ascii_lowercase())
+        .chain(known_paths.iter().filter_map(|path| {
+            std::path::Path::new(path)
+                .file_name()?
+                .to_str()
+                .map(str::to_ascii_lowercase)
+        }))
+        .collect();
+    !candidates.is_empty()
+        && Command::new("tasklist")
+            .args(["/FO", "CSV", "/NH"])
+            .output()
+            .is_ok_and(|output| {
+                let listing = String::from_utf8_lossy(&output.stdout).to_ascii_lowercase();
+                candidates.iter().any(|name| {
+                    listing
+                        .lines()
+                        .any(|line| line.starts_with(&format!("\"{name}\"")))
+                })
+            })
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn app_is_running(_: &[String], _: &[String], _: &[String]) -> bool {
+    false
 }
 
 fn executable_file(path: &str) -> bool {
@@ -95,6 +194,45 @@ fn open_target(target: &str) -> Result<(), String> {
 
 fn run_script(path: &str) -> Result<(), String> {
     run_script_with_timeout(path, std::time::Duration::from_secs(30))
+}
+
+fn start_script(path: &str) -> Result<(), String> {
+    if !std::path::Path::new(path).is_file() {
+        return Err("SCRIPT_NOT_FOUND".into());
+    }
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        if !path.starts_with('/') || !path.to_ascii_lowercase().ends_with(".sh") {
+            return Err("UNSUPPORTED_SCRIPT".into());
+        }
+        let mut command = Command::new("/bin/sh");
+        command.arg(path);
+        command
+    };
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        if !crate::profile::valid_target_path("windows", path)
+            || !path.to_ascii_lowercase().ends_with(".ps1")
+        {
+            return Err("UNSUPPORTED_SCRIPT".into());
+        }
+        let mut command = Command::new("powershell.exe");
+        command.args(["-NoProfile", "-NonInteractive", "-File", path]);
+        command
+    };
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    return Err("UNSUPPORTED_PLATFORM".into());
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        command
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| format!("SCRIPT_START_FAILED: {error}"))
+    }
 }
 
 fn run_script_with_timeout(path: &str, timeout: std::time::Duration) -> Result<(), String> {
@@ -375,8 +513,44 @@ fn to_key(value: &str) -> Result<enigo::Key, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::to_key;
+    use super::{resolve_open_app, to_key, DispatchOutcome, ExecutionIntent};
     use enigo::Key;
+
+    #[test]
+    fn direct_open_app_keeps_launch_behavior_while_workspace_noops_when_running() {
+        let direct_launches = std::sync::atomic::AtomicUsize::new(0);
+        let direct = resolve_open_app(ExecutionIntent::Direct, true, || {
+            direct_launches.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        });
+        assert_eq!(direct, Ok(DispatchOutcome::Launched));
+        assert_eq!(direct_launches.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        let workspace_launches = std::sync::atomic::AtomicUsize::new(0);
+        let workspace = resolve_open_app(ExecutionIntent::PrepareEnvironment, true, || {
+            workspace_launches.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        });
+        assert_eq!(workspace, Ok(DispatchOutcome::AlreadyRunning));
+        assert_eq!(
+            workspace_launches.load(std::sync::atomic::Ordering::SeqCst),
+            0
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn workspace_script_reports_started_without_waiting_for_exit() {
+        let directory =
+            std::env::temp_dir().join(format!("blink-workspace-script-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let script = directory.join("slow.sh");
+        std::fs::write(&script, "#!/bin/sh\nsleep 1\n").unwrap();
+        let started = std::time::Instant::now();
+        super::start_script(script.to_str().unwrap()).unwrap();
+        assert!(started.elapsed() < std::time::Duration::from_millis(250));
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn maps_contract_macos_copy_hotkey() {

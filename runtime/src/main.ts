@@ -4,10 +4,18 @@ import { open, save, confirm } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { HotkeyDisplay } from "./keycap";
 import { RuntimeIcon, type RuntimeIconName } from "./runtimeIcon";
-import type { RuntimePlatform, RuntimeProfile, RuntimeSnapshot } from "./types";
+import type {
+  RuntimePlatform,
+  RuntimeProfile,
+  RuntimeSnapshot,
+  Workspace,
+  WorkspaceItem,
+  WorkspaceRun,
+  WorkspaceSnapshot,
+} from "./types";
 import { openRuntimeCreator, captureCreatorKey } from "./creator";
 import { performBinding, type BindingOperationApi } from "./bindingOperation";
-import type { Profile } from "@blink/contract";
+import type { Action, Profile } from "@blink/contract";
 import "./style.css";
 import "./settings.css";
 import { BrandSidebarHeader, SettingsView } from "./settingsView";
@@ -36,6 +44,16 @@ const iconChoices: RuntimeIconName[] = [
   "find",
 ];
 let snapshot: RuntimeSnapshot | undefined;
+let workspaceSnapshot: WorkspaceSnapshot | undefined;
+let workspaceEditor: { id: string; name: string; items: WorkspaceItem[] } | undefined;
+let workspaceActionDraft:
+  | {
+      index?: number;
+      type: "OPEN_APP" | "OPEN_URL" | "OPEN_FILE" | "OPEN_FOLDER" | "SCRIPT";
+      target: string;
+    }
+  | undefined;
+let workspaceBusy = false;
 let bindingProfileId: string | undefined;
 let bindingBusy = false;
 let creatorOpen = false;
@@ -72,7 +90,7 @@ function showNotice(message: string) {
       document.querySelector(".notice")?.remove();
     }, 2800);
 }
-let page: "deck" | "settings" = "deck";
+let page: "deck" | "workspaces" | "settings" = "deck";
 let deckTab: "mine" | "system" = "mine";
 let editingExternal = false;
 let selectedExternalIds = new Set<string>();
@@ -119,6 +137,244 @@ function profileIcon(item: RuntimeProfile): string {
 
 async function reloadRuntimeSnapshot() {
   snapshot = await invoke<RuntimeSnapshot>("runtime_snapshot");
+  workspaceSnapshot = await invoke<WorkspaceSnapshot>("workspace_snapshot");
+  render();
+}
+
+const workspaceResultText = (result: WorkspaceRun["status"]) =>
+  ({ COMPLETE: "加载完成", PARTIAL: "部分完成", FAILED: "加载失败" })[result];
+const itemOutcomeText = (result: WorkspaceRun["results"][number]["outcome"]) =>
+  ({
+    LAUNCHED: "已启动",
+    ALREADY_RUNNING: "已运行",
+    OPEN_REQUEST_ACCEPTED: "已打开",
+    STARTED: "已开始",
+    FAILED: "失败",
+  })[result];
+const actionText = (action: Action) =>
+  ({
+    OPEN_APP: "打开 App",
+    OPEN_URL: "打开 URL",
+    OPEN_FILE: "打开文件",
+    OPEN_FOLDER: "打开文件夹",
+    SCRIPT: "运行脚本",
+    TOGGLE_APP: "切换 App",
+    COMMAND: "快捷键",
+  })[action.type];
+const actionTarget = (action: Action) => {
+  const execution = action.executions[snapshot?.platform ?? "macos"];
+  if (!execution) return "当前平台未配置";
+  if (execution.type === "LAUNCH_APP")
+    return (
+      execution.appNames?.[0] ??
+      execution.knownPaths?.[0] ??
+      execution.bundleIds?.[0] ??
+      execution.executableNames?.[0] ??
+      "App"
+    );
+  return "url" in execution ? execution.url : "path" in execution ? execution.path : execution.type;
+};
+
+const workspaceActionIcon = (action: Action) =>
+  action.type === "OPEN_FOLDER" || action.type === "OPEN_FILE"
+    ? "folder"
+    : action.type === "SCRIPT"
+      ? "terminal"
+      : action.type === "OPEN_URL"
+        ? "external"
+        : "app";
+
+const workspaceTargetLabel = (action: Action) => {
+  const target = actionTarget(action);
+  if (action.type === "OPEN_URL") {
+    try {
+      return new URL(target).hostname.replace(/^www\./, "");
+    } catch {
+      return target;
+    }
+  }
+  if (["OPEN_APP", "OPEN_FILE", "OPEN_FOLDER", "SCRIPT"].includes(action.type)) {
+    return target.split(/[\\/]/).filter(Boolean).pop() ?? target;
+  }
+  return target;
+};
+
+const workspaceActionSummary = (action: Action) => {
+  const target = escapeHtml(workspaceTargetLabel(action));
+  switch (action.type) {
+    case "OPEN_APP":
+      return target;
+    case "OPEN_URL":
+      return `URL · ${target}`;
+    case "OPEN_FOLDER":
+      return `文件夹 · ${target}`;
+    case "OPEN_FILE":
+      return `文件 · ${target}`;
+    case "SCRIPT":
+      return `脚本 · ${target}`;
+    default:
+      return `${escapeHtml(actionText(action))} · ${target}`;
+  }
+};
+
+function workspaceMarkup() {
+  const state = workspaceSnapshot;
+  if (!state) return `<div class="workspace-empty">正在读取工作空间…</div>`;
+  const warning = state.loadError
+    ? `<div class="workspace-warning"><strong>Workspace 配置未载入</strong><span>${escapeHtml(state.loadError)}。V1 命令与绑定不受影响；保存新的 Workspace 后会重建独立配置。</span></div>`
+    : "";
+  const rows = state.workspaces
+    .map((item) => {
+      const run = state.lastRun?.workspaceId === item.id ? state.lastRun : undefined;
+      const enabled = item.items.filter((entry) => entry.enabled).length;
+      const succeeded = run?.results.filter((result) => result.outcome !== "FAILED").length ?? 0;
+      return `<article class="workspace-row"><div class="workspace-row-main"><span class="command-icon tone-external">${RuntimeIcon("workspace")}</span><div class="workspace-row-copy"><div class="workspace-row-head"><div><h2>${escapeHtml(item.name)}</h2><p>${enabled} 个动作</p></div><div class="workspace-row-controls"><button class="primary-button" data-workspace-run="${item.id}" ${workspaceBusy ? "disabled" : ""}>${RuntimeIcon("play")}加载</button><button class="more" data-menu="workspace:${item.id}" aria-label="更多操作">${RuntimeIcon("more")}</button></div></div><p class="workspace-summary">${[
+        ...item.items,
+      ]
+        .sort((a, b) => a.order - b.order)
+        .map(
+          (entry) =>
+            `<span class="${entry.enabled ? "" : "disabled"}">${RuntimeIcon(workspaceActionIcon(entry.action))}${workspaceActionSummary(entry.action)}</span>`,
+        )
+        .join(" · ")}</p></div></div>${
+        run
+          ? `<div class="workspace-run-result ${run.status.toLowerCase()}"><span class="workspace-status-dot"></span><div class="workspace-report-copy"><strong>${workspaceResultText(run.status)} · ${succeeded}/${run.results.length}</strong><details><summary>查看详细动作结果</summary>${run.results
+              .map((result) => {
+                const source = item.items.find((entry) => entry.id === result.itemId);
+                return `<p><span>${escapeHtml(source ? actionTarget(source.action) : result.actionType)}</span><b>${itemOutcomeText(result.outcome)}${result.error ? ` · ${escapeHtml(result.error)}` : ""}</b></p>`;
+              })
+              .join(
+                "",
+              )}</details></div></div>`
+          : ""
+      }</article>`;
+    })
+    .join("");
+  return `${warning}${workspaceEditorMarkup()}<div class="workspace-list">${rows || `<div class="workspace-empty"><h2>建立第一个工作空间</h2><p>一键同时打开一组 App、网页、文件、文件夹和脚本，快速准备你的工作环境。</p></div>`}</div>`;
+}
+
+function workspaceEditorMarkup() {
+  if (!workspaceEditor) return "";
+  const draft = workspaceActionDraft
+    ? `<div class="workspace-action-form"><select id="workspace-action-type">${["OPEN_APP", "OPEN_URL", "OPEN_FILE", "OPEN_FOLDER", "SCRIPT"].map((type) => `<option value="${type}" ${workspaceActionDraft!.type === type ? "selected" : ""}>${({ OPEN_APP: "打开 App", OPEN_URL: "打开 URL", OPEN_FILE: "打开文件", OPEN_FOLDER: "打开文件夹", SCRIPT: "运行脚本" } as Record<string, string>)[type]}</option>`).join("")}</select><input id="workspace-action-target" value="${escapeHtml(workspaceActionDraft.target)}" placeholder="选择目标或输入 URL">${workspaceActionDraft.type === "OPEN_URL" ? "" : `<button id="workspace-pick-target">选择…</button>`}<button id="workspace-action-cancel">取消</button><button class="primary-button" id="workspace-action-confirm">${workspaceActionDraft.index === undefined ? "添加" : "更新"}</button></div>`
+    : "";
+  return `<div class="workspace-editor"><label>名称<input id="workspace-name" maxlength="80" value="${escapeHtml(workspaceEditor.name)}" placeholder="例如：Blink Development"></label><div class="workspace-editor-title"><strong>动作</strong><button id="workspace-add-action">添加动作</button></div><p class="workspace-contract-note">排序只影响展示和日志顺序，所有已启用动作会同时开始。</p>${draft}<div class="workspace-editor-apps">${
+    [...workspaceEditor.items]
+      .sort((a, b) => a.order - b.order)
+      .map(
+        (item, index) =>
+          `<div><label><input type="checkbox" data-workspace-enabled="${index}" ${item.enabled ? "checked" : ""}>${actionText(item.action)}</label><span><small>${escapeHtml(actionTarget(item.action))}</small></span><button data-workspace-up="${index}" ${index === 0 ? "disabled" : ""}>上移</button><button data-workspace-down="${index}" ${index === workspaceEditor!.items.length - 1 ? "disabled" : ""}>下移</button><button data-workspace-edit-action="${index}">编辑</button><button data-workspace-remove-action="${index}">移除</button></div>`,
+      )
+      .join("") || `<p>请至少添加一个动作。</p>`
+  }</div><div class="workspace-editor-actions"><button id="workspace-editor-cancel">取消</button><button class="primary-button" id="workspace-editor-save">保存 Workspace</button></div></div>`;
+}
+
+async function startWorkspaceEditor(id?: string) {
+  const existing = id ? workspaceSnapshot?.workspaces.find((item) => item.id === id) : undefined;
+  workspaceEditor = {
+    id: existing?.id ?? `ws-${crypto.randomUUID()}`,
+    name: existing?.name ?? "",
+    items: existing?.items.map((item) => structuredClone(item)) ?? [],
+  };
+  workspaceActionDraft = undefined;
+  render();
+}
+
+async function saveWorkspaceEditor() {
+  if (!workspaceEditor) return;
+  const name = document.querySelector<HTMLInputElement>("#workspace-name")?.value.trim() ?? "";
+  if (!name || !workspaceEditor.items.length) {
+    showNotice("请输入名称并至少添加一个动作");
+    render();
+    return;
+  }
+  const item: Workspace = {
+    id: workspaceEditor.id,
+    name,
+    items: workspaceEditor.items.map((entry, index) => ({ ...entry, order: index })),
+  };
+  await invoke("save_workspace", { item });
+  workspaceEditor = undefined;
+  await reloadRuntimeSnapshot();
+}
+
+async function runWorkspace(id: string) {
+  if (workspaceBusy) return;
+  workspaceBusy = true;
+  render();
+  try {
+    const run = await invoke<WorkspaceRun>("run_workspace", { workspaceId: id });
+    workspaceSnapshot = { ...workspaceSnapshot!, lastRun: run };
+  } catch (error) {
+    showNotice(`加载失败：${String(error)}`);
+  } finally {
+    workspaceBusy = false;
+    await reloadRuntimeSnapshot();
+  }
+}
+
+function editWorkspaceAction(index?: number) {
+  if (!workspaceEditor || !snapshot) return;
+  const existing = index === undefined ? undefined : workspaceEditor.items[index];
+  const type = existing?.action.type;
+  if (type === "TOGGLE_APP" || type === "COMMAND") return;
+  workspaceActionDraft = {
+    index,
+    type: type ?? "OPEN_APP",
+    target: existing ? actionTarget(existing.action) : "",
+  };
+  render();
+}
+
+function confirmWorkspaceAction() {
+  if (!workspaceEditor || !workspaceActionDraft || !snapshot) return;
+  const selected = workspaceActionDraft.type;
+  const target =
+    document.querySelector<HTMLInputElement>("#workspace-action-target")?.value.trim() ?? "";
+  if (!target) {
+    showNotice("请选择或输入动作目标");
+    render();
+    return;
+  }
+  const platform = snapshot.platform;
+  let action: Action;
+  if (selected === "OPEN_APP") {
+    const filename = target.split(/[\\/]/).pop() ?? target;
+    action = {
+      type: "OPEN_APP",
+      executions: {
+        [platform]: {
+          type: "LAUNCH_APP",
+          ...(platform === "macos"
+            ? { appNames: [filename.replace(/\.app$/i, "")], knownPaths: [target] }
+            : { executableNames: [filename], knownPaths: [target] }),
+        },
+      },
+    };
+  } else if (selected === "OPEN_URL")
+    action = { type: "OPEN_URL", executions: { [platform]: { type: "OPEN_URL", url: target } } };
+  else if (selected === "OPEN_FILE")
+    action = { type: "OPEN_FILE", executions: { [platform]: { type: "OPEN_FILE", path: target } } };
+  else if (selected === "OPEN_FOLDER")
+    action = {
+      type: "OPEN_FOLDER",
+      executions: { [platform]: { type: "OPEN_FOLDER", path: target } },
+    };
+  else
+    action = { type: "SCRIPT", executions: { [platform]: { type: "RUN_SCRIPT", path: target } } };
+  const existing =
+    workspaceActionDraft.index === undefined
+      ? undefined
+      : workspaceEditor.items[workspaceActionDraft.index];
+  const item: WorkspaceItem = {
+    id: existing?.id ?? `item-${crypto.randomUUID()}`,
+    action,
+    enabled: existing?.enabled ?? true,
+    order: existing?.order ?? workspaceEditor.items.length,
+  };
+  if (workspaceActionDraft.index === undefined) workspaceEditor.items.push(item);
+  else workspaceEditor.items[workspaceActionDraft.index] = item;
+  workspaceActionDraft = undefined;
   render();
 }
 async function startCreator(editId?: string) {
@@ -419,8 +675,16 @@ function render() {
   const status = snapshot?.listenerStatus ?? "ERROR";
   const systemCount = profiles.filter((item) => item.source === "SYSTEM").length;
   const externalCount = profiles.length - systemCount;
-  app.innerHTML = `<main class="runtime-shell ${status === "PAUSED" ? "is-paused" : ""}"><aside class="sidebar"><div>${BrandSidebarHeader()}<nav><button class="nav-item ${page === "deck" ? "active" : ""}" data-page="deck">${RuntimeIcon("deck")}${t("deck")}</button><button class="nav-item ${page === "settings" ? "active" : ""}" data-page="settings">${RuntimeIcon("settings")}${t("settings")}</button></nav></div><div class="sidebar-bottom"><button class="sidebar-status ${status.toLowerCase()}" id="toggle-listener"><i></i>${statusText()[status]}</button><span>${t("runtimePrefix")}${status === "LISTENING" ? t("running") : t("notListening")}</span></div></aside>
-    <section class="main-content ${page === "settings" ? "settings-content" : ""}"><header class="main-header"><div><h1>${page === "deck" ? t("deckTitle") : t("settings")}</h1><p>${page === "deck" ? `${externalCount}${t("userCountSuffix")}${systemCount}${t("systemCountSuffix")}` : t("settingsSubtitle")}</p></div>${page === "deck" ? `<div class="deck-actions"><button class="manage-button ${editingExternal ? "is-active" : ""}" id="toggle-external-edit">${RuntimeIcon("folder")}${editingExternal ? t("doneManaging") : t("manageCommands")}</button><button class="import-button" id="import">${RuntimeIcon("import")}${t("importProfile")}</button></div>` : ""}</header>${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}${page === "deck" ? deckMarkup(profiles, platform) : settingsMarkup(status)}</section></main>${menuMarkup()}${dialogMarkup()}`;
+  const title =
+    page === "deck" ? t("deckTitle") : page === "workspaces" ? "工作空间" : t("settings");
+  const subtitle =
+    page === "deck"
+      ? `${externalCount}${t("userCountSuffix")}${systemCount}${t("systemCountSuffix")}`
+      : page === "workspaces"
+        ? "一键同时发起一组动作，快速准备你的工作环境"
+        : t("settingsSubtitle");
+  app.innerHTML = `<main class="runtime-shell ${status === "PAUSED" ? "is-paused" : ""}"><aside class="sidebar"><div>${BrandSidebarHeader()}<nav><button class="nav-item ${page === "deck" ? "active" : ""}" data-page="deck">${RuntimeIcon("deck")}${t("deck")}</button><button class="nav-item ${page === "workspaces" ? "active" : ""}" data-page="workspaces">${RuntimeIcon("app")}工作空间</button><button class="nav-item ${page === "settings" ? "active" : ""}" data-page="settings">${RuntimeIcon("settings")}${t("settings")}</button></nav></div><div class="sidebar-bottom"><button class="sidebar-status ${status.toLowerCase()}" id="toggle-listener"><i></i>${statusText()[status]}</button><span>${t("runtimePrefix")}${status === "LISTENING" ? t("running") : t("notListening")}</span></div></aside>
+    <section class="main-content ${page === "settings" ? "settings-content" : page === "workspaces" ? "workspace-content" : ""}"><header class="main-header"><div><h1>${title}</h1><p>${subtitle}</p></div>${page === "deck" ? `<div class="deck-actions"><button class="manage-button ${editingExternal ? "is-active" : ""}" id="toggle-external-edit">${RuntimeIcon("folder")}${editingExternal ? t("doneManaging") : t("manageCommands")}</button><button class="import-button" id="import">${RuntimeIcon("import")}${t("importProfile")}</button></div>` : page === "workspaces" ? `<button class="primary-button" id="workspace-create">${RuntimeIcon("plus")}新建工作空间</button>` : ""}</header>${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}${page === "deck" ? deckMarkup(profiles, platform) : page === "workspaces" ? workspaceMarkup() : settingsMarkup(status)}</section></main>${menuMarkup()}${dialogMarkup()}`;
   wireEvents();
   const scroll = document.querySelector<HTMLElement>(".grid-scroll");
   if (scroll) scroll.scrollTop = deckScrollTop;
@@ -513,7 +777,7 @@ function wireEvents() {
     .forEach((button) => button.addEventListener("click", () => void stopBinding()));
   document.querySelectorAll<HTMLButtonElement>("[data-page]").forEach((button) =>
     button.addEventListener("click", () => {
-      page = button.dataset.page as "deck" | "settings";
+      page = button.dataset.page as "deck" | "workspaces" | "settings";
       render();
     }),
   );
@@ -605,10 +869,153 @@ function wireEvents() {
   document
     .querySelector("#quit")
     ?.addEventListener("click", () => void invoke("quit_blink_command"));
+  document
+    .querySelector("#workspace-create")
+    ?.addEventListener("click", () => void startWorkspaceEditor());
+  document.querySelector("#workspace-editor-cancel")?.addEventListener("click", () => {
+    workspaceEditor = undefined;
+    workspaceActionDraft = undefined;
+    render();
+  });
+  document
+    .querySelector("#workspace-editor-save")
+    ?.addEventListener("click", () => void saveWorkspaceEditor());
+  document
+    .querySelector<HTMLInputElement>("#workspace-name")
+    ?.addEventListener("input", (event) => {
+      if (workspaceEditor) workspaceEditor.name = (event.target as HTMLInputElement).value;
+    });
+  document
+    .querySelector("#workspace-add-action")
+    ?.addEventListener("click", () => editWorkspaceAction());
+  document
+    .querySelector<HTMLSelectElement>("#workspace-action-type")
+    ?.addEventListener("change", (event) => {
+      if (!workspaceActionDraft) return;
+      workspaceActionDraft.type = (event.target as HTMLSelectElement)
+        .value as typeof workspaceActionDraft.type;
+      workspaceActionDraft.target = "";
+      render();
+    });
+  document.querySelector("#workspace-action-cancel")?.addEventListener("click", () => {
+    workspaceActionDraft = undefined;
+    render();
+  });
+  document
+    .querySelector("#workspace-action-confirm")
+    ?.addEventListener("click", confirmWorkspaceAction);
+  document.querySelector("#workspace-pick-target")?.addEventListener("click", async () => {
+    if (!workspaceActionDraft || !snapshot) return;
+    const type = workspaceActionDraft.type;
+    const path = await open({
+      title:
+        type === "OPEN_APP"
+          ? "选择 App"
+          : type === "OPEN_FOLDER"
+            ? "选择文件夹"
+            : type === "SCRIPT"
+              ? "选择可信脚本"
+              : "选择文件",
+      multiple: false,
+      directory: type === "OPEN_FOLDER",
+      ...(type === "OPEN_APP" && snapshot.platform === "macos"
+        ? { defaultPath: "/Applications" }
+        : {}),
+      ...(type === "SCRIPT"
+        ? {
+            filters: [{ name: "脚本", extensions: [snapshot.platform === "macos" ? "sh" : "ps1"] }],
+          }
+        : {}),
+    });
+    if (typeof path === "string" && workspaceActionDraft) {
+      workspaceActionDraft.target = path;
+      render();
+    }
+  });
+  document.querySelectorAll<HTMLInputElement>("[data-workspace-enabled]").forEach((input) =>
+    input.addEventListener("change", () => {
+      if (workspaceEditor)
+        workspaceEditor.items[Number(input.dataset.workspaceEnabled)].enabled = input.checked;
+      render();
+    }),
+  );
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-workspace-edit-action]")
+    .forEach((button) =>
+      button.addEventListener("click", () =>
+        editWorkspaceAction(Number(button.dataset.workspaceEditAction)),
+      ),
+    );
+  document.querySelectorAll<HTMLButtonElement>("[data-workspace-remove-action]").forEach((button) =>
+    button.addEventListener("click", () => {
+      workspaceEditor?.items.splice(Number(button.dataset.workspaceRemoveAction), 1);
+      render();
+    }),
+  );
+  for (const direction of ["up", "down"] as const)
+    document
+      .querySelectorAll<HTMLButtonElement>(`[data-workspace-${direction}]`)
+      .forEach((button) =>
+        button.addEventListener("click", () => {
+          if (!workspaceEditor) return;
+          const index = Number(
+            button.dataset[direction === "up" ? "workspaceUp" : "workspaceDown"],
+          );
+          const other = direction === "up" ? index - 1 : index + 1;
+          [workspaceEditor.items[index], workspaceEditor.items[other]] = [
+            workspaceEditor.items[other],
+            workspaceEditor.items[index],
+          ];
+          workspaceEditor.items.forEach((item, itemIndex) => (item.order = itemIndex));
+          render();
+        }),
+      );
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-workspace-edit]")
+    .forEach((button) =>
+      button.addEventListener(
+        "click",
+        () => void startWorkspaceEditor(button.dataset.workspaceEdit),
+      ),
+    );
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-workspace-run]")
+    .forEach((button) =>
+      button.addEventListener("click", () => void runWorkspace(button.dataset.workspaceRun!)),
+    );
+  document.querySelectorAll<HTMLButtonElement>("[data-workspace-menu-edit]").forEach((button) =>
+    button.addEventListener("click", () => {
+      activeMenu = undefined;
+      void startWorkspaceEditor(button.dataset.workspaceMenuEdit);
+    }),
+  );
+  document.querySelectorAll<HTMLButtonElement>("[data-workspace-menu-delete]").forEach((button) =>
+    button.addEventListener("click", async () => {
+      activeMenu = undefined;
+      if (await confirm("删除这个 Workspace？其中的动作与 V1 命令不会被执行或删除。")) {
+        await invoke("delete_workspace", { workspaceId: button.dataset.workspaceMenuDelete });
+        await reloadRuntimeSnapshot();
+      }
+    }),
+  );
+  document.querySelectorAll<HTMLButtonElement>("[data-workspace-delete]").forEach((button) =>
+    button.addEventListener("click", async () => {
+      if (await confirm("删除这个 Workspace？其中的动作与 V1 命令不会被执行或删除。")) {
+        await invoke("delete_workspace", { workspaceId: button.dataset.workspaceDelete });
+        await reloadRuntimeSnapshot();
+      }
+    }),
+  );
 }
 
 function menuMarkup() {
   if (!activeMenu || !snapshot) return "";
+  if (activeMenu.id.startsWith("workspace:")) {
+    const id = activeMenu.id.slice("workspace:".length);
+    const item = workspaceSnapshot?.workspaces.find((workspace) => workspace.id === id);
+    if (!item) return "";
+    return `<div id="menu-backdrop" class="menu-backdrop"></div><div class="profile-menu" style="left:${activeMenu.x}px;top:${activeMenu.y}px"><button data-workspace-menu-edit="${item.id}">${RuntimeIcon("rename")}编辑 Workspace</button><hr><button class="danger" data-workspace-menu-delete="${item.id}">${RuntimeIcon("delete")}删除 Workspace</button></div>`;
+  }
   const item = snapshot.profiles.find((profile) => profile.id === activeMenu!.id);
   if (!item) return "";
   return `<div id="menu-backdrop" class="menu-backdrop"></div><div class="profile-menu" style="left:${activeMenu.x}px;top:${activeMenu.y}px">${item.source === "EXTERNAL" ? `<button data-edit="${item.id}">${RuntimeIcon("rename")}${t("editCommand")}</button>` : ""}<button data-bind="${item.id}">${RuntimeIcon("command")}${item.physicalInput ? t("rebind") : t("bind")}</button>${item.physicalInput ? `<button data-unbind="${item.id}">${RuntimeIcon("unbind")}${t("removeBinding")}</button>` : ""}<button data-icons="${item.id}" data-name="${escapeHtml(item.name)}">${RuntimeIcon("image")}${t("changeIcon")}</button><button data-rename="${item.id}" data-name="${escapeHtml(item.name)}">${RuntimeIcon("rename")}${t("rename")}</button><hr><button class="danger" data-delete="${item.id}" data-name="${escapeHtml(item.name)}">${RuntimeIcon("delete")}${t("delete")}</button></div>`;

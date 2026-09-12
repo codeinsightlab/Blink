@@ -7,6 +7,7 @@ import {
   LogOut,
   Mail,
   AppWindow,
+  BriefcaseBusiness,
   ClipboardPaste,
   Command,
   Copy,
@@ -17,7 +18,9 @@ import {
   Image,
   Info,
   LayoutGrid,
+  Layers3,
   Link,
+  Play,
   Pencil,
   Plus,
   Redo2,
@@ -27,8 +30,10 @@ import {
   Search,
   Settings,
   Trash2,
+  Terminal,
   Undo2,
   Unplug,
+  CheckCircle2,
   createElement,
   type IconNode,
 } from "lucide";
@@ -65,7 +70,12 @@ export type RuntimeIconName =
   | "delete"
   | "info"
   | "external"
-  | "drag";
+  | "drag"
+  | "layers"
+  | "play"
+  | "terminal"
+  | "check"
+  | "workspace";
 
 const ICONS: Record<Exclude<RuntimeIconName, "brand">, IconNode> = {
   activity: Activity,
@@ -98,6 +108,11 @@ const ICONS: Record<Exclude<RuntimeIconName, "brand">, IconNode> = {
   info: Info,
   external: Link,
   drag: GripVertical,
+  layers: Layers3,
+  play: Play,
+  terminal: Terminal,
+  check: CheckCircle2,
+  workspace: BriefcaseBusiness,
 };
 
 export function RuntimeIcon(name: RuntimeIconName, className = "") {
