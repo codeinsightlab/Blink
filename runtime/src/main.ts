@@ -228,26 +228,24 @@ function workspaceMarkup() {
       const run = state.lastRun?.workspaceId === item.id ? state.lastRun : undefined;
       const enabled = item.items.filter((entry) => entry.enabled).length;
       const succeeded = run?.results.filter((result) => result.outcome !== "FAILED").length ?? 0;
-      return `<article class="workspace-row"><div class="workspace-row-main"><span class="command-icon tone-external">${RuntimeIcon("workspace")}</span><div class="workspace-row-copy"><div class="workspace-row-head"><div><h2>${escapeHtml(item.name)}</h2><p>${enabled} 个动作</p></div><div class="workspace-row-controls"><button class="primary-button" data-workspace-run="${item.id}" ${workspaceBusy ? "disabled" : ""}>${RuntimeIcon("play")}加载</button><button class="more" data-menu="workspace:${item.id}" aria-label="更多操作">${RuntimeIcon("more")}</button></div></div><p class="workspace-summary">${[
-        ...item.items,
-      ]
+      const orderedItems = [...item.items].sort((a, b) => a.order - b.order);
+      const hiddenCount = Math.max(0, orderedItems.length - 5);
+      const status = run
+        ? `<details class="workspace-run-status ${run.status.toLowerCase()}"><summary><span class="workspace-status-dot"></span>${workspaceResultText(run.status)} · ${succeeded}/${run.results.length}</summary><div class="workspace-result-details">${run.results
+            .map((result) => {
+              const source = item.items.find((entry) => entry.id === result.itemId);
+              return `<p class="${result.outcome === "FAILED" ? "failed" : ""}"><span>${escapeHtml(source ? workspaceTargetLabel(source.action) : result.actionType)}</span><b>${itemOutcomeText(result.outcome)}${result.error ? ` · ${escapeHtml(result.error)}` : ""}</b></p>`;
+            })
+            .join("")}</div></details>`
+        : "";
+      return `<article class="workspace-row"><div class="workspace-row-main"><span class="command-icon tone-external">${RuntimeIcon("workspace")}</span><div class="workspace-row-copy"><div class="workspace-row-head"><div><h2>${escapeHtml(item.name)}</h2><div class="workspace-meta"><span>${enabled} 个动作</span>${status}</div></div><div class="deck-actions workspace-row-controls"><button class="primary-button" data-workspace-run="${item.id}" ${workspaceBusy ? "disabled" : ""}>${RuntimeIcon("play")}加载</button><button class="more" data-menu="workspace:${item.id}" aria-label="更多操作">${RuntimeIcon("more")}</button></div></div><div class="workspace-summary">${orderedItems
+        .slice(0, 5)
         .sort((a, b) => a.order - b.order)
         .map(
           (entry) =>
             `<span class="${entry.enabled ? "" : "disabled"}">${RuntimeIcon(workspaceActionIcon(entry.action))}${workspaceActionSummary(entry.action)}</span>`,
         )
-        .join(" · ")}</p></div></div>${
-        run
-          ? `<div class="workspace-run-result ${run.status.toLowerCase()}"><span class="workspace-status-dot"></span><div class="workspace-report-copy"><strong>${workspaceResultText(run.status)} · ${succeeded}/${run.results.length}</strong><details><summary>查看详细动作结果</summary>${run.results
-              .map((result) => {
-                const source = item.items.find((entry) => entry.id === result.itemId);
-                return `<p><span>${escapeHtml(source ? actionTarget(source.action) : result.actionType)}</span><b>${itemOutcomeText(result.outcome)}${result.error ? ` · ${escapeHtml(result.error)}` : ""}</b></p>`;
-              })
-              .join(
-                "",
-              )}</details></div></div>`
-          : ""
-      }</article>`;
+        .join("")}${hiddenCount ? `<button class="bind-cta" data-workspace-edit="${item.id}">+${hiddenCount}</button>` : ""}</div></div></div></article>`;
     })
     .join("");
   return `${warning}${workspaceEditorMarkup()}<div class="workspace-list">${rows || `<div class="workspace-empty"><h2>建立第一个工作空间</h2><p>一键同时打开一组 App、网页、文件、文件夹和脚本，快速准备你的工作环境。</p></div>`}</div>`;
@@ -684,7 +682,7 @@ function render() {
         ? "一键同时发起一组动作，快速准备你的工作环境"
         : t("settingsSubtitle");
   app.innerHTML = `<main class="runtime-shell ${status === "PAUSED" ? "is-paused" : ""}"><aside class="sidebar"><div>${BrandSidebarHeader()}<nav><button class="nav-item ${page === "deck" ? "active" : ""}" data-page="deck">${RuntimeIcon("deck")}${t("deck")}</button><button class="nav-item ${page === "workspaces" ? "active" : ""}" data-page="workspaces">${RuntimeIcon("app")}工作空间</button><button class="nav-item ${page === "settings" ? "active" : ""}" data-page="settings">${RuntimeIcon("settings")}${t("settings")}</button></nav></div><div class="sidebar-bottom"><button class="sidebar-status ${status.toLowerCase()}" id="toggle-listener"><i></i>${statusText()[status]}</button><span>${t("runtimePrefix")}${status === "LISTENING" ? t("running") : t("notListening")}</span></div></aside>
-    <section class="main-content ${page === "settings" ? "settings-content" : page === "workspaces" ? "workspace-content" : ""}"><header class="main-header"><div><h1>${title}</h1><p>${subtitle}</p></div>${page === "deck" ? `<div class="deck-actions"><button class="manage-button ${editingExternal ? "is-active" : ""}" id="toggle-external-edit">${RuntimeIcon("folder")}${editingExternal ? t("doneManaging") : t("manageCommands")}</button><button class="import-button" id="import">${RuntimeIcon("import")}${t("importProfile")}</button></div>` : page === "workspaces" ? `<button class="primary-button" id="workspace-create">${RuntimeIcon("plus")}新建工作空间</button>` : ""}</header>${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}${page === "deck" ? deckMarkup(profiles, platform) : page === "workspaces" ? workspaceMarkup() : settingsMarkup(status)}</section></main>${menuMarkup()}${dialogMarkup()}`;
+    <section class="main-content ${page === "settings" ? "settings-content" : page === "workspaces" ? "workspace-content" : ""}"><header class="main-header"><div><h1>${title}</h1><p>${subtitle}</p></div>${page === "deck" ? `<div class="deck-actions"><button class="manage-button ${editingExternal ? "is-active" : ""}" id="toggle-external-edit">${RuntimeIcon("folder")}${editingExternal ? t("doneManaging") : t("manageCommands")}</button><button class="import-button" id="import">${RuntimeIcon("import")}${t("importProfile")}</button></div>` : page === "workspaces" ? `<div class="deck-actions"><button class="primary-button" id="workspace-create">${RuntimeIcon("plus")}新建工作空间</button></div>` : ""}</header>${notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ""}${page === "deck" ? deckMarkup(profiles, platform) : page === "workspaces" ? workspaceMarkup() : settingsMarkup(status)}</section></main>${menuMarkup()}${dialogMarkup()}`;
   wireEvents();
   const scroll = document.querySelector<HTMLElement>(".grid-scroll");
   if (scroll) scroll.scrollTop = deckScrollTop;
@@ -752,7 +750,7 @@ function wireEvents() {
       button.addEventListener("click", () => void startCreator(button.dataset.edit!)),
     );
   const actions = document.querySelector(".deck-actions");
-  if (actions) {
+  if (actions && page === "deck") {
     const createButton = document.createElement("button");
     createButton.className = "primary-button";
     createButton.id = "create-command";
@@ -778,6 +776,7 @@ function wireEvents() {
   document.querySelectorAll<HTMLButtonElement>("[data-page]").forEach((button) =>
     button.addEventListener("click", () => {
       page = button.dataset.page as "deck" | "workspaces" | "settings";
+      activeMenu = undefined;
       render();
     }),
   );
