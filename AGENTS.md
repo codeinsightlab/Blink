@@ -1,5 +1,21 @@
 # Blink 跨平台架构最高约束
 
+# Runtime 前端架构约束
+
+以下约束适用于 `runtime/src/` 的现有重构与后续新增功能：
+
+1. `main.ts` 只负责加载全局样式并调用 `bootstrapApp()`，不得加入页面 DOM、业务状态、菜单、Dialog 或 Tauri command。
+2. `app.ts` 是 App Shell 与组合根，只负责启动、一级导航、共享生命周期、跨页面协调和必要的全局状态；一级功能不得继续直接堆入 `app.ts`。
+3. Command、Workspace、Settings 等一级功能必须分别放在 `pages/<feature>/`。Page 负责本页渲染、页面状态和页面事件，并提供明确的 `mount` / `unmount` 生命周期。
+4. 可跨页面复用且业务弱耦合的 UI 才进入 `components/`；组件通过参数和 callback 与 Page 通信，不得直接访问业务 API 或全局状态。不要为单次使用的小片段制造伪组件。
+5. 原始 Tauri `invoke(...)` 只能存在于 `api/`。Page、Component 和 Domain 不得直接调用 Tauri command；新增 command 必须先形成有类型的 API 方法，再由页面使用。
+6. Action 标签、摘要、允许类型、目标格式等纯规则放在 `domain/`；Domain 不访问 DOM、不发 IPC、不保存 UI 状态。
+7. 跨层数据契约优先复用 `@blink/contract` 和现有 Runtime DTO；页面私有 view state 留在页面内，不得无理由上升为公共模型。
+8. 默认使用简单 TypeScript 对象和局部状态。没有经过明确架构审查，不引入 React/Vue、Router、Redux 类 Store、EventBus、DI 容器或第二套设计系统。
+9. 依赖方向固定为 `main -> app -> pages -> components/domain/api`；`api` 与 `domain` 不得反向依赖 Page 或 App。
+10. 纯架构重构必须冻结业务、文案、DOM class、视觉与交互顺序；保留当前未提交的用户改动，并至少通过 Runtime typecheck/build、现有模型与 parity 测试以及 `git diff --check`。
+11. 新增一级功能前先回答：属于哪个 Page、使用哪个 API/Domain contract、状态归谁所有、卸载时清理什么。无法回答时不得把实现直接追加到 `main.ts` 或 `app.ts`。
+
 ## 1. 核心原则
 
 Blink 的跨平台设计必须遵循以下最高原则：

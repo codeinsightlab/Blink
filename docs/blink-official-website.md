@@ -1,5 +1,7 @@
 # Blink 第一版官方网站
 
+> 最新产品战略审查见 [Blink 产品审查与长期规划](blink-product-strategy.md)。本文件保留历次网站实现与发布记录，最新复审按日期追加于文末。
+
 ## 2026-09-07：暂时关闭官网 macOS 下载
 
 - 导航、首屏和页尾主 CTA 统一明确标记“下载 Windows 版 / Download for Windows”；中英文同时说明 macOS 暂未开放，不承诺开放日期。
@@ -478,3 +480,58 @@ npm --prefix website run preview
 - Changelog 提交 `f9da4a2b58b6c48ea43858b87199733fa5e883b9` 已推送至 `main`；annotated tag `v0.1.11` 指向同一提交并已推送。本地 Changelog gate、Website typecheck、release asset selection test、build 与生成产物检查均通过。
 - Cloudflare Production 的 `/changelog` 已显示 `Blink v0.1.11`，sitemap `lastmod` 为 `2026-09-10`。Release run `34439630093` 则因 GitHub Actions 账户付款/spending limit 在 runner 启动前失败，后续 verify、双平台构建与 publish 全部 skipped。
 - `Blink-Releases` 中 `v0.1.11` 仍为 HTTP 404，没有新 DMG、EXE、MSI 或 checksums。当前状态为 `TAG_AND_CHANGELOG_PUBLISHED / DESKTOP_RELEASE_BLOCKED`。修复 GitHub Actions billing/spending limit 后，应重跑原 release run 或对既有 `v0.1.11` tag 执行 workflow_dispatch；不要创建替代 tag，也不要移动已发布 tag。
+
+## 2026-09-15 产品战略审查：官网承诺与使用路径复核
+
+### 范围与结论
+
+本轮以“确立 Blink 长期产品方向与差异化”为目标，使用 Product Design 审查流程重新观察当前官网，结合当前源码及公开 Release 核对承诺。战略规划集中在 [产品战略文档](blink-product-strategy.md)，本节只保存官网体验事实。
+
+**官网清楚表达了一键动作，但需要按已发布版本维护能力状态，并补足从下载到第一次真实成功的说明。** 本轮没有修改网站产品代码或部署配置。
+
+### 步骤 1：首屏理解产品｜中等
+
+![本轮官网首屏](audits/product-strategy-2026-09-15/01-website-entry.png)
+
+- 优点：标题、动作说明和 macOS 下载按钮集中，测试构建状态可见；主价值容易理解。
+- UX 风险：“实体键盘”与页面后续 Macro Pad 图片可能让部分用户以为必须购买专用设备。后文已有普通键盘说明，建议首屏旁给一个普通键盘的可用例子，并保留“系统能识别且能注册”的前提。
+- 可访问性风险：小号灰色状态文字在深色背景中不突出，需要独立测量对比度和放大阅读；本轮不作 WCAG 合规判定。
+
+### 步骤 2：功能说明｜需要修正
+
+![本轮功能说明](audits/product-strategy-2026-09-15/02-website-features.png)
+
+- 优点：每项能力附一句结果说明，并区分状态。
+- 确认的不一致：“快速切换 App”仍显示“即将支持”，而当前公开 v0.1.11 Release 已列“打开与快速切换应用”，源码也有平台模块。建议建立按版本与 OS 标注的能力清单，不直接把所有平台改为同一成功状态。
+- 产品风险：页面同时讲开发者、电商运营、内容办公，却尚无本次获得的用户研究支持哪类是主市场。战略文档建议先以行为筛选一个首批人群。
+- 可访问性边界：状态有文字、不只靠颜色；状态小字、图片替代文字是否充分，仍需完整辅助技术测试。
+
+### 步骤 3：上手说明与下载｜部分可用
+
+![本轮上手及下载](audits/product-strategy-2026-09-15/03-website-onboarding-download.png)
+
+- 优点：连接键盘、选择动作、录制绑定三步简明；提供双平台入口和 macOS 测试包提醒。
+- UX 风险：这三步描述配置过程，未覆盖安装、权限与跨应用实际验证。建议补一条首次成功路径，帮助用户识别卡在哪一步。
+- 本轮浏览器 DOM：macOS 下载指向 v0.1.11，Windows 下载仍指向 v0.1.1。`website/src/App.tsx` 分别请求两平台下载；`downloads.ts` 保留 v0.1.1 Windows fallback，异常被静默忽略。这里只确认本次会话的旧链接与源码路径，没有证明每次访问都会发生。
+- 本轮一次命令行 API 请求返回 v0.1.11 的 macOS/Windows 地址，后续两次请求得到 HTTP 502。需要单独复核官网 API 和失败反馈；未查 Cloudflare 当前 deployment/日志，不能据此指定基础设施根因。
+- 可访问性边界：DOM 中按钮和链接有名称；未完整验证键盘顺序、焦点样式、屏幕阅读器和移动端。
+
+### 步骤 4：桌面配置与真实触发｜本轮未验证
+
+`/Applications/Blink.app` 原生界面读取超时 `timeoutReached`。本轮没有桌面有效截图，未创建或执行用户动作，不把官网的 Runtime 展示图片当成原生证明。此处保留为具名验证缺口，不据工具故障判定 Blink 自身卡死。
+
+### 发布事实更新：旧阻塞记录已过时
+
+保留上节历史时间线。2026-09-15 当前 [公开 v0.1.11 Release](https://github.com/codeinsightlab/Blink-Releases/releases/tag/v0.1.11) 已存在，发布时间为 `2026-09-10T05:28:04Z`；包含 arm64 DMG、x64 EXE/MSI 和 checksums。旧的 `DESKTOP_RELEASE_BLOCKED` 不再代表当前状态。
+
+这只证明公开资产存在；Release 说明仍称 macOS 为 unsigned/non-notarized 测试构建。本轮未下载核验签名、安装、升级或执行效果。
+
+### 建议顺序与回执
+
+1. 对齐官网能力、Release 和平台支持说明。
+2. 定位动态下载失败及旧版本 fallback 的用户反馈问题。
+3. 补足从安装到第一次真实成功的路径，再用目标用户验证。
+
+- 证据目录：`docs/audits/product-strategy-2026-09-15/`。三张分区截图均由本轮浏览器截图工具获取、保存后重新查看；早期不完整截图已被重新捕获覆盖。完整截图与 DOM 另存用于追溯。
+- 结果边界：完成官网有限流程审查、当前源码事实审查和规划；原生闭环未验证。
+- 未运行网站 build/typecheck，因为没有网站代码变化；文档变更完成 `git diff --check`。未发布内容、未推送、未创建 tag、未执行 Cloudflare 部署。
